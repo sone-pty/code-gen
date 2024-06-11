@@ -1,0 +1,10 @@
+[package]
+name = "code-gen"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+vnlex = { version = "0.10", path = "../../vnlex" }
+
+[dependencies]
+vnlex = { version = "0.10", path = "../../vnlex" }
