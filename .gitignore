@@ -1,3 +1,16 @@
+/src/lex/states.rs
 /target
 Cargo.lock
-/src/lex/states.rs
+/ExportScripts
+/ConfigExportEnum
+*.xlsx
+/xlsxs
+/ConfigRefNameMapping
+*.exe
+*.bin
+/ServerConfig*
+/ServerExport*
+build*.sh
+run.sh
+/Data
+ConfigCollection.cs

@@ -1,5 +1,7 @@
-use std::sync::LazyLock;
+#![allow(dead_code)]
+
 use crate::error::Error;
+use std::{collections::HashSet, sync::LazyLock};
 
 pub struct Config {
     pub row_of_start: usize,
@@ -20,6 +22,7 @@ pub struct Config {
     pub col_of_enum_ident: usize,
     pub col_of_enum_val: usize,
     pub col_of_enum_desc: usize,
+    pub file_banner: &'static str,
 }
 
 impl Config {
@@ -51,6 +54,7 @@ impl Config {
             language_file_name: config.attribute("language_file_name")?.as_str()?,
             language_file_suffix: config.attribute("language_file_suffix")?.as_str()?,
             line_end_flag: config.attribute("line_end_flag")?.as_str()?,
+            file_banner: config.attribute("file_banner")?.as_str()?,
         })
     }
 }
@@ -62,4 +66,22 @@ pub static CFG: LazyLock<Config> = LazyLock::new(|| {
         tnl::Object::try_from(tnl.as_str()).unwrap(),
     )))
     .unwrap()
+});
+
+pub static mut OUTPUT_SCRIPT_CODE_DIR: &'static str = "ExportScripts/";
+pub static mut OUTPUT_ENUM_CODE_DIR: &'static str = "ConfigExportEnum/";
+pub static mut OUTPUT_SERVER_SCRIPT_CODE_DIR: &'static str = "ServerExportScripts/";
+pub static mut OUTPUT_SERVER_ENUM_CODE_DIR: &'static str = "ServerConfigExportEnum/";
+pub static mut SOURCE_XLSXS_DIR: &'static str = "D:/config";
+pub static mut REF_TEXT_DIR: &'static str = "ConfigRefNameMapping/";
+pub static mut LANG_OUTPUT_DIR: &'static str = "Data/";
+pub static TABLE_XLSX_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    let mut ret = HashSet::<&'static str>::default();
+    ret.insert("NameCore_CN.xlsx");
+    ret.insert("DeadCharacter.xlsx");
+    ret.insert("InscribedCharacter.xlsx");
+    ret.insert("LString.xlsx");
+    ret.insert("Shell");
+    ret.insert("CustomExportConfig");
+    ret
 });

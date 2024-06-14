@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{str::FromStr, sync::LazyLock};
 
 use vnlex::{

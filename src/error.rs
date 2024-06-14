@@ -12,6 +12,13 @@ pub enum Error {
     ParseFloatErr(std::num::ParseFloatError),
     ParseLexErr(ParseError),
     TnlLoadError(AccessError<'static>),
+    SerdeJsonError(serde_json::Error),
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::SerdeJsonError(value)
+    }
 }
 
 impl From<AccessError<'static>> for Error {
@@ -72,6 +79,7 @@ impl std::error::Error for Error {
             Self::ParseFloatErr(err) => err,
             Self::ParseLexErr(err) => err,
             Self::TnlLoadError(err) => err,
+            Self::SerdeJsonError(err) => err,
         })
     }
 }
@@ -86,6 +94,7 @@ impl std::fmt::Display for Error {
             Self::ParseFloatErr(e) => write!(f, "{}", e),
             Self::ParseLexErr(e) => write!(f, "{}", e),
             Self::TnlLoadError(e) => write!(f, "{}", e),
+            Self::SerdeJsonError(e) => write!(f, "{}", e),
         }
     }
 }
