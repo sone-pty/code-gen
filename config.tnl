@@ -1,0 +1,23 @@
+config: @config {
+    row_of_start: 8
+    row_of_default: 7
+    row_of_comment: 1
+    row_of_ident: 3
+    row_of_type: 4
+    row_of_fk: 5
+    row_of_enum: 6
+    cell_of_defkey: @cell {
+        row: 3
+        col: 1
+    }
+    rows_to_switch: 60
+    source_table_suffix: "xlsx"
+    dest_code_suffix: "cs"
+    ref_text_suffix: "ref.text"
+    language_file_name: "ui_language"
+    language_file_suffix: "txt"
+    line_end_flag: "\n"
+    col_of_enum_ident: 0
+    col_of_enum_val: 1
+    col_of_enum_desc: 2
+}

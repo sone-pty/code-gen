@@ -20,6 +20,10 @@ impl Value for Bool {
     fn check(&self) -> bool {
         self.ty == TypeInfo::Bool
     }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
 }
 
 pub struct Int {
@@ -41,6 +45,35 @@ impl Value for Int {
 
     fn check(&self) -> bool {
         self.ty == TypeInfo::Int
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
+}
+
+pub struct Decimal {
+    pub ty: TypeInfo,
+    pub val: rust_decimal::Decimal,
+}
+
+impl Value for Decimal {
+    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}m", self.val))?;
+        Ok(())
+    }
+
+    fn check(&self) -> bool {
+        self.ty == TypeInfo::Decimal
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
     }
 }
 
@@ -64,6 +97,10 @@ impl Value for UInt {
     fn check(&self) -> bool {
         self.ty == TypeInfo::Uint
     }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
 }
 
 pub struct Short {
@@ -85,6 +122,10 @@ impl Value for Short {
 
     fn check(&self) -> bool {
         self.ty == TypeInfo::Short
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
     }
 }
 
@@ -108,6 +149,10 @@ impl Value for UShort {
     fn check(&self) -> bool {
         self.ty == TypeInfo::UShort
     }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
 }
 
 pub struct Byte {
@@ -129,6 +174,10 @@ impl Value for Byte {
 
     fn check(&self) -> bool {
         self.ty == TypeInfo::Byte
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
     }
 }
 
@@ -152,6 +201,10 @@ impl Value for SByte {
     fn check(&self) -> bool {
         self.ty == TypeInfo::SByte
     }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
 }
 
 pub struct Float {
@@ -174,6 +227,10 @@ impl Value for Float {
     fn check(&self) -> bool {
         self.ty == TypeInfo::Float
     }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
 }
 
 pub struct Double {
@@ -195,5 +252,9 @@ impl Value for Double {
 
     fn check(&self) -> bool {
         self.ty == TypeInfo::Double
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
     }
 }

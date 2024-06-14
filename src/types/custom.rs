@@ -15,7 +15,10 @@ impl Value for Custom {
         stream.write_fmt(format_args!("new {}(", self.ty))?;
 
         if !self.args.is_empty() {
-            for v in (&self.args[0..self.args.len() - 1]).iter().map(|v| v.as_str().trim()) {
+            for v in (&self.args[0..self.args.len() - 1])
+                .iter()
+                .map(|v| v.as_str().trim())
+            {
                 if v == "{}" {
                     stream.write_str("default, ")?;
                 } else if v.starts_with("{") {
@@ -40,5 +43,9 @@ impl Value for Custom {
 
     fn check(&self) -> bool {
         true
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
     }
 }

@@ -8,3 +8,14 @@ vnlex = { version = "0.10", path = "../../vnlex" }
 
 [dependencies]
 vnlex = { version = "0.10", path = "../../vnlex" }
+xlsx-read = { path = "../../xlsx-read" }
+tnl = { path = "../../tnl" }
+rust_decimal = "1.32.0"
+
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = 'abort'

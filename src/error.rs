@@ -1,5 +1,6 @@
 use std::io;
 
+use tnl::AccessError;
 use vnlex::ParseError;
 
 #[derive(Debug)]
@@ -10,6 +11,13 @@ pub enum Error {
     ParseIntErr(std::num::ParseIntError),
     ParseFloatErr(std::num::ParseFloatError),
     ParseLexErr(ParseError),
+    TnlLoadError(AccessError<'static>),
+}
+
+impl From<AccessError<'static>> for Error {
+    fn from(value: AccessError<'static>) -> Self {
+        Self::TnlLoadError(value)
+    }
 }
 
 impl From<ParseError> for Error {
@@ -63,6 +71,7 @@ impl std::error::Error for Error {
             Self::ParseIntErr(err) => err,
             Self::ParseFloatErr(err) => err,
             Self::ParseLexErr(err) => err,
+            Self::TnlLoadError(err) => err,
         })
     }
 }
@@ -76,6 +85,7 @@ impl std::fmt::Display for Error {
             Self::ParseIntErr(e) => write!(f, "{}", e),
             Self::ParseFloatErr(e) => write!(f, "{}", e),
             Self::ParseLexErr(e) => write!(f, "{}", e),
+            Self::TnlLoadError(e) => write!(f, "{}", e),
         }
     }
 }

@@ -3,8 +3,9 @@ use std::fmt::{Display, Write};
 use crate::error::Error;
 
 pub(crate) mod custom;
-pub(crate) mod integer;
-pub(crate) mod list;
+pub(crate) mod r#enum;
+pub(crate) mod numbers;
+pub(crate) mod sequence;
 pub(crate) mod string;
 
 #[allow(dead_code)]
@@ -12,6 +13,7 @@ pub trait Value {
     fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
     fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
     fn check(&self) -> bool;
+    fn ty_info(&self) -> &TypeInfo;
 }
 
 #[allow(dead_code)]
@@ -27,7 +29,7 @@ pub enum TypeInfo {
     Decimal,
     Byte,
     SByte,
-    Enum,
+    Enum(String, String),
     String,
     LString,
     List(Box<TypeInfo>),
@@ -52,7 +54,7 @@ impl Display for TypeInfo {
             TypeInfo::Decimal => f.write_str("decimal"),
             TypeInfo::Byte => f.write_str("byte"),
             TypeInfo::SByte => f.write_str("sbyte"),
-            TypeInfo::Enum => todo!(),
+            TypeInfo::Enum(base, name) => f.write_fmt(format_args!("E{}{}", base, name)),
             TypeInfo::String => f.write_str("string"),
             TypeInfo::LString => f.write_str("int"),
             TypeInfo::List(val) => f.write_fmt(format_args!("List<{}>", val)),

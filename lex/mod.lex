@@ -49,9 +49,11 @@ array_elements
     | array_elements<> ',' values<>
     ;
 
-values
+#values
     : literal_vals<>
     | array_vals<>
+    | @ident
+    | '(' @string ',' integer_literal<> ')'
     ;
 
 float_type
@@ -107,8 +109,8 @@ custom_type
     ;
 
 enum_type
-    : "enum"
-    | "ENUM"
+    : "enum" @ident '.' @ident
+    | "ENUM" @ident '.' @ident
     ;
 
 tuple_type
@@ -156,7 +158,7 @@ array_type
     | value_type<> '[' integer_literal<> ']'
     ;
 
-value_type
+#value_type
     : decimal_type<>
     | float_type<>
     | double_type<>
