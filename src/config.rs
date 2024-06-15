@@ -13,6 +13,7 @@ pub struct Config {
     pub row_of_enum: usize,
     pub cell_of_defkey: (usize, usize), // (col, row)
     pub rows_to_switch: usize,
+    pub eof_flag: &'static str,
     pub source_table_suffix: &'static str,
     pub dest_code_suffix: &'static str,
     pub ref_text_suffix: &'static str,
@@ -49,6 +50,7 @@ impl Config {
                 )
             },
             source_table_suffix: config.attribute("source_table_suffix")?.as_str()?,
+            eof_flag: config.attribute("eof_flag")?.as_str()?,
             dest_code_suffix: config.attribute("dest_code_suffix")?.as_str()?,
             ref_text_suffix: config.attribute("ref_text_suffix")?.as_str()?,
             language_file_name: config.attribute("language_file_name")?.as_str()?,

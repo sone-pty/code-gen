@@ -1,4 +1,5 @@
 #![feature(lazy_cell)]
+#![feature(new_uninit)]
 
 use std::{
     collections::HashSet,
@@ -24,8 +25,8 @@ mod error;
 mod lex;
 mod parser;
 mod preconfig;
-mod types;
 mod table;
+mod types;
 
 fn create_dest_dirs(args: &Args) {
     if let Err(_) = fs::metadata(unsafe { OUTPUT_SCRIPT_CODE_DIR }) {
@@ -384,7 +385,7 @@ namespace Config
             )
         }
     });
-    
+
     sx.send(handle).unwrap();
 }
 
@@ -435,7 +436,6 @@ fn main() {
 
             // process regular tables
 
-
             // !! drop the raw tx
             drop(tx);
             while let Ok(handle) = rx.recv() {
@@ -467,7 +467,12 @@ fn main() {
 #[test]
 fn test() {
     let mut display = String::new();
-    let p = parser::parse_assign(r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {1,2}, 100} "#, 0, 0).unwrap();
+    let p = parser::parse_assign(
+        r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {1,2}, 100} "#,
+        0,
+        0,
+    )
+    .unwrap();
     if p.check() {
         let _ = p.value(&mut display);
     } else {

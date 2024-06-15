@@ -24,7 +24,12 @@ use crate::{
         CData,
     },
     types::{
-        custom::Custom, r#enum::Enum, numbers::{Bool, Byte, Decimal, Double, Float, Int, SByte, Short, UInt, UShort}, sequence::{Array, FixedArray, List, ShortList, Tuple, ValueTuple}, string::{LString, SString}, TypeInfo, Value
+        custom::Custom,
+        numbers::{Bool, Byte, Decimal, Double, Float, Int, SByte, Short, UInt, UShort},
+        r#enum::Enum,
+        sequence::{Array, FixedArray, List, ShortList, Tuple, ValueTuple},
+        string::{LString, SString},
+        TypeInfo, Value,
     },
 };
 
@@ -149,12 +154,11 @@ fn parse_list_type(ty: &Box<list_type>) -> Result<TypeInfo, error::Error> {
 
 fn parse_array_type(ty: &Box<array_type>) -> Result<TypeInfo, error::Error> {
     match ty.as_ref() {
-        array_type::p0(ty, _, _) => {
-            Ok(TypeInfo::Array(Box::new(get_value_type(ty)?)))
-        },
-        array_type::p1(ty, _, nums, _) => {
-            Ok(TypeInfo::FixedArray(Box::new(get_value_type(ty)?), get_integer_value(nums)?))
-        },
+        array_type::p0(ty, _, _) => Ok(TypeInfo::Array(Box::new(get_value_type(ty)?))),
+        array_type::p1(ty, _, nums, _) => Ok(TypeInfo::FixedArray(
+            Box::new(get_value_type(ty)?),
+            get_integer_value(nums)?,
+        )),
     }
 }
 
@@ -418,12 +422,8 @@ fn parse_array_value(
     vals: &Box<values>,
 ) -> Result<Box<dyn Value>, error::Error> {
     let (raw, nums) = match raw.as_ref() {
-        array_type::p0(raw, _, _) => {
-            (raw, None)
-        },
-        array_type::p1(raw, _, _, _) => {
-            (raw, Some(()))
-        },
+        array_type::p0(raw, _, _) => (raw, None),
+        array_type::p1(raw, _, _, _) => (raw, Some(())),
     };
     let values::p1(array_vals) = vals.as_ref() else {
         return Err("expected array_vals for array".into());
@@ -436,12 +436,12 @@ fn parse_array_value(
                 return Ok(Box::new(Array {
                     ty,
                     vals: Vec::new(),
-                }) as _)
+                }) as _);
             } else {
                 return Ok(Box::new(FixedArray {
                     ty,
                     vals: Vec::new(),
-                }) as _)
+                }) as _);
             }
         }
         states::nodes::array_vals::p1(_, elements, _) => {

@@ -11,6 +11,7 @@ config: @config {
         col: 1
     }
     rows_to_switch: 60
+    eof_flag: "#EOF"
     source_table_suffix: "xlsx"
     dest_code_suffix: "cs"
     ref_text_suffix: "ref.text"
