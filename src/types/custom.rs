@@ -42,6 +42,9 @@ impl Value for Custom {
     }
 
     fn check(&self) -> bool {
+        let TypeInfo::Custom(_) = self.ty else {
+            return false;
+        };
         true
     }
 

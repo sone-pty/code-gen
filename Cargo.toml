@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [build-dependencies]
-vnlex = { version = "0.10", path = "../../vnlex" }
+vnlex = { version = "0.10", path = "../vnlex" }
 
 [dependencies]
-vnlex = { version = "0.10", path = "../../vnlex" }
-xlsx-read = { path = "../../xlsx-read" }
-tnl = { path = "../../tnl" }
+vnlex = { version = "0.10", path = "../vnlex" }
+xlsx-read = { path = "../xlsx-read" }
+tnl = { path = "../tnl" }
 rust_decimal = "1.32.0"
 clap = { version = "4.1.8", features = ["derive"] }
 # TODO: Delete this after rustc upgraded.

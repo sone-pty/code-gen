@@ -24,12 +24,7 @@ use crate::{
         CData,
     },
     types::{
-        custom::Custom,
-        numbers::{Bool, Byte, Decimal, Double, Float, Int, SByte, Short, UInt, UShort},
-        r#enum::Enum,
-        sequence::{Array, List, ShortList, Tuple, ValueTuple},
-        string::{LString, SString},
-        TypeInfo, Value,
+        custom::Custom, r#enum::Enum, numbers::{Bool, Byte, Decimal, Double, Float, Int, SByte, Short, UInt, UShort}, sequence::{Array, FixedArray, List, ShortList, Tuple, ValueTuple}, string::{LString, SString}, TypeInfo, Value
     },
 };
 
@@ -153,10 +148,14 @@ fn parse_list_type(ty: &Box<list_type>) -> Result<TypeInfo, error::Error> {
 }
 
 fn parse_array_type(ty: &Box<array_type>) -> Result<TypeInfo, error::Error> {
-    let array_type::p0(ty, _, _) = ty.as_ref() else {
-        return Err("unexpected type, found fixed array".into());
-    };
-    Ok(TypeInfo::Array(Box::new(get_value_type(ty)?)))
+    match ty.as_ref() {
+        array_type::p0(ty, _, _) => {
+            Ok(TypeInfo::Array(Box::new(get_value_type(ty)?)))
+        },
+        array_type::p1(ty, _, nums, _) => {
+            Ok(TypeInfo::FixedArray(Box::new(get_value_type(ty)?), get_integer_value(nums)?))
+        },
+    }
 }
 
 fn parse_value_tuple_type(ty: &Box<value_tuple_type>) -> Result<TypeInfo, error::Error> {
@@ -418,8 +417,13 @@ fn parse_array_value(
     ty: TypeInfo,
     vals: &Box<values>,
 ) -> Result<Box<dyn Value>, error::Error> {
-    let array_type::p0(raw, _, _) = raw.as_ref() else {
-        return Err("type is not matched, this is not a fixed array".into());
+    let (raw, nums) = match raw.as_ref() {
+        array_type::p0(raw, _, _) => {
+            (raw, None)
+        },
+        array_type::p1(raw, _, _, _) => {
+            (raw, Some(()))
+        },
     };
     let values::p1(array_vals) = vals.as_ref() else {
         return Err("expected array_vals for array".into());
@@ -428,10 +432,17 @@ fn parse_array_value(
 
     match array_vals.as_ref() {
         states::nodes::array_vals::p0(_, _) => {
-            return Ok(Box::new(List {
-                ty,
-                vals: Vec::new(),
-            }) as _)
+            if nums.is_none() {
+                return Ok(Box::new(Array {
+                    ty,
+                    vals: Vec::new(),
+                }) as _)
+            } else {
+                return Ok(Box::new(FixedArray {
+                    ty,
+                    vals: Vec::new(),
+                }) as _)
+            }
         }
         states::nodes::array_vals::p1(_, elements, _) => {
             parse_array_elements_value(raw, elements, &mut vals)?
@@ -440,7 +451,12 @@ fn parse_array_value(
             parse_array_elements_value(raw, elements, &mut vals)?
         }
     }
-    Ok(Box::new(Array { ty, vals }) as _)
+
+    if nums.is_none() {
+        Ok(Box::new(Array { ty, vals }) as _)
+    } else {
+        Ok(Box::new(FixedArray { ty, vals }) as _)
+    }
 }
 
 fn parse_valuetuple_value(

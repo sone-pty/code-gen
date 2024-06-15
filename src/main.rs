@@ -25,6 +25,7 @@ mod lex;
 mod parser;
 mod preconfig;
 mod types;
+mod table;
 
 fn create_dest_dirs(args: &Args) {
     if let Err(_) = fs::metadata(unsafe { OUTPUT_SCRIPT_CODE_DIR }) {
@@ -158,7 +159,7 @@ fn process_lstring_xlsx<P: AsRef<Path> + Send + 'static>(
                         writeln!(file, "#region const keys");
 
                         for (_, id) in ret.into_iter() {
-                            if let Ok(table) = ff.parse_sheet(id) {
+                            if let Ok(table) = ff.parse_sheet(*id) {
                                 tables.push(table);
                             }
                         }
@@ -432,6 +433,9 @@ fn main() {
                 excluded.clone(),
             );
 
+            // process regular tables
+
+
             // !! drop the raw tx
             drop(tx);
             while let Ok(handle) = rx.recv() {
@@ -463,7 +467,11 @@ fn main() {
 #[test]
 fn test() {
     let mut display = String::new();
-    let p = parser::parse_assign(r#" decimal = 1000000000000 "#, 0, 0).unwrap();
-    let _ = p.value(&mut display);
+    let p = parser::parse_assign(r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {1,2}, 100} "#, 0, 0).unwrap();
+    if p.check() {
+        let _ = p.value(&mut display);
+    } else {
+        println!("check failed");
+    }
     println!("{}", display);
 }

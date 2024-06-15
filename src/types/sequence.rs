@@ -25,7 +25,7 @@ impl Value for List {
     }
 
     fn check(&self) -> bool {
-        todo!()
+        self.vals.iter().all(|v| v.check())
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -58,7 +58,48 @@ impl Value for ShortList {
     }
 
     fn check(&self) -> bool {
-        self.vals.iter().all(|v| *v.ty_info() == TypeInfo::Short)
+        self.vals.iter().all(|v| v.check())
+    }
+
+    fn ty_info(&self) -> &TypeInfo {
+        &self.ty
+    }
+}
+
+pub struct FixedArray {
+    pub ty: TypeInfo,
+    pub vals: Vec<Box<dyn Value>>,
+}
+
+impl Value for FixedArray {
+    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("new {}{{", self.ty))?;
+        if !self.vals.is_empty() {
+            for v in &self.vals[0..self.vals.len() - 1] {
+                v.value(stream)?;
+                stream.write_str(", ")?;
+            }
+            self.vals.last().unwrap().value(stream)?;
+        }
+        stream.write_char('}')?;
+        Ok(())
+    }
+
+    fn check(&self) -> bool {
+        let TypeInfo::FixedArray(_, nums) = self.ty else {
+            return false;
+        };
+
+        if nums == 0 || self.vals.len() != nums {
+            false
+        } else {
+            self.vals.iter().all(|v| v.check())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -91,7 +132,10 @@ impl Value for Array {
     }
 
     fn check(&self) -> bool {
-        todo!()
+        let TypeInfo::Array(_) = self.ty else {
+            return false;
+        };
+        self.vals.iter().all(|v| v.check())
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -124,7 +168,15 @@ impl Value for Tuple {
     }
 
     fn check(&self) -> bool {
-        todo!()
+        let TypeInfo::Tuple(ref types) = self.ty else {
+            return false;
+        };
+
+        if types.len() != self.vals.len() {
+            false
+        } else {
+            self.vals.iter().all(|v| v.check())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -157,7 +209,15 @@ impl Value for ValueTuple {
     }
 
     fn check(&self) -> bool {
-        todo!()
+        let TypeInfo::ValueTuple(ref types) = self.ty else {
+            return false;
+        };
+
+        if types.len() != self.vals.len() {
+            false
+        } else {
+            self.vals.iter().all(|v| v.check())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {

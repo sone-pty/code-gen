@@ -18,6 +18,9 @@ impl Value for Enum {
     }
 
     fn check(&self) -> bool {
+        let TypeInfo::Enum(_, _) = self.ty else {
+            return false;
+        };
         true
     }
 
