@@ -24,6 +24,8 @@ pub struct Config {
     pub col_of_enum_val: usize,
     pub col_of_enum_desc: usize,
     pub file_banner: &'static str,
+    pub language_xlsx_name: &'static str,
+    pub ref_start_num: i32,
 }
 
 impl Config {
@@ -57,6 +59,8 @@ impl Config {
             language_file_suffix: config.attribute("language_file_suffix")?.as_str()?,
             line_end_flag: config.attribute("line_end_flag")?.as_str()?,
             file_banner: config.attribute("file_banner")?.as_str()?,
+            language_xlsx_name: config.attribute("language_xlsx_name")?.as_str()?,
+            ref_start_num: config.attribute("ref_start_num")?.as_i32()?,
         })
     }
 }

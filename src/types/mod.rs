@@ -10,8 +10,10 @@ pub(crate) mod string;
 
 #[allow(dead_code)]
 pub trait Value {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), Error>;
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), Error>;
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
     fn check(&self) -> bool;
     fn ty_info(&self) -> &TypeInfo;
 }
@@ -39,6 +41,15 @@ pub enum TypeInfo {
     ValueTuple(Vec<Box<TypeInfo>>),
     ShortList,
     Custom(String),
+}
+
+impl TypeInfo {
+    pub fn is_array_or_list(&self) -> bool {
+        match self {
+            Self::Array(_) | Self::FixedArray(_, _) | Self::List(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for TypeInfo {

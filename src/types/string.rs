@@ -6,12 +6,12 @@ pub struct SString {
 }
 
 impl Value for SString {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -24,6 +24,17 @@ impl Value for SString {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct LString {
@@ -34,12 +45,12 @@ pub struct LString {
 }
 
 impl Value for LString {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.idx))?;
         Ok(())
     }
@@ -50,5 +61,15 @@ impl Value for LString {
 
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
+    }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.idx))?;
+        Ok(())
     }
 }

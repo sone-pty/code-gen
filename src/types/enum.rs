@@ -6,13 +6,13 @@ pub struct Enum {
 }
 
 impl Value for Enum {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        self.ty(stream)?;
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+        self.ty_fmt(stream)?;
         stream.write_fmt(format_args!(".{}", self.ident))?;
         Ok(())
     }
@@ -26,5 +26,16 @@ impl Value for Enum {
 
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
+    }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        self.ty(stream)?;
+        stream.write_fmt(format_args!(".{}", self.ident))?;
+        Ok(())
     }
 }

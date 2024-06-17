@@ -17,6 +17,7 @@ use config::{
     CFG, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SCRIPT_CODE_DIR,
     OUTPUT_SERVER_ENUM_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR, REF_TEXT_DIR, SOURCE_XLSXS_DIR,
 };
+use table::Table;
 use xlsx_read::{excel_file::ExcelFile, excel_table::ExcelTable};
 
 mod args;
@@ -27,6 +28,7 @@ mod parser;
 mod preconfig;
 mod table;
 mod types;
+mod util;
 
 fn create_dest_dirs(args: &Args) {
     if let Err(_) = fs::metadata(unsafe { OUTPUT_SCRIPT_CODE_DIR }) {
@@ -258,7 +260,7 @@ fn process_config_collection<P: AsRef<Path> + Send + 'static>(
                 eprintln!(
                     "{}",
                     Red.bold().paint(format!(
-                        "[Error]: 处理ConfigCollection时, 发生错误: {}",
+                        "[Error]: An error occurred while processing ConfigCollection: {}",
                         dir.unwrap_err()
                     ))
                 );
@@ -380,13 +382,61 @@ namespace Config
         } else {
             eprintln!(
                 "{}",
-                Red.bold()
-                    .paint(format!("[Error]: 请提供ConfigCollection的保存路径!"))
+                Red.bold().paint(format!(
+                    "[Error]: Please provide the save path of ConfigCollection"
+                ))
             )
         }
     });
 
     sx.send(handle).unwrap();
+}
+
+fn load_tables<P: AsRef<Path>>(
+    dir: P,
+    tx: std::sync::mpsc::Sender<JoinHandle<()>>,
+    excluded: Arc<ExcludedFolders<'static>>,
+) -> Result<Vec<Table>, error::Error> {
+    let mut tables = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = path
+            .file_name()
+            .ok_or::<error::Error>(
+                format!("path terminates in .. : `{:?}`", path.as_os_str()).into(),
+            )?
+            .to_str()
+            .ok_or::<error::Error>("invalid unicode".into())?;
+        let file_ext = path
+            .extension()
+            .ok_or::<error::Error>(
+                format!("can't find extension: `{:?}`", path.as_os_str()).into(),
+            )?
+            .to_str()
+            .ok_or::<error::Error>("invalid unicode".into())?;
+
+        // ban-lists
+        if config::TABLE_XLSX_FILTER.contains(file_name) {
+            continue;
+        }
+
+        if path.is_dir() && !file_name.starts_with('.') && !excluded.0.contains(file_name) {
+            let tx_clone = tx.clone();
+            let excluded_clone = excluded.clone();
+            let handle = std::thread::spawn(move || {
+                let _ = load_tables(path, tx_clone, excluded_clone);
+            });
+            tx.send(handle).unwrap();
+        } else if file_ext == CFG.source_table_suffix && !file_name.starts_with('~') {
+            let idx = file_name
+                .find('.')
+                .ok_or::<error::Error>("can't find `.` in xlsx file name".into())?;
+            let file_name = &file_name[..idx];
+            tables.push(Table::load(&path, file_name.into())?);
+        }
+    }
+    Ok(tables)
 }
 
 #[derive(Default)]
@@ -422,9 +472,9 @@ fn main() {
             }
 
             let (tx, rx) = std::sync::mpsc::channel::<JoinHandle<()>>();
-            let mut ls_path = PathBuf::from(unsafe { SOURCE_XLSXS_DIR });
-            ls_path.push("LString.xlsx");
-            process_lstring_xlsx(ls_path, tx.clone(), args.output_lang_dir);
+            let mut path = PathBuf::from(unsafe { SOURCE_XLSXS_DIR });
+            path.push(CFG.language_xlsx_name);
+            process_lstring_xlsx(path, tx.clone(), args.output_lang_dir);
 
             // process config collection
             process_config_collection(
@@ -434,7 +484,14 @@ fn main() {
                 excluded.clone(),
             );
 
-            // process regular tables
+            // load regular tables
+            match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx.clone(), excluded) {
+                Ok(tables) => {}
+                Err(e) => {
+                    eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                    exit(-1);
+                }
+            }
 
             // !! drop the raw tx
             drop(tx);
@@ -443,21 +500,21 @@ fn main() {
             }
 
             println!("[End]");
-            println!("\n按任意键退出程序...");
+            println!("\nPress any key to exit the program...");
             let mut empty = [0; 1];
             let _ = std::io::Read::read(&mut std::io::stdin(), &mut empty);
         }
         args::Command::Clean => {
             if let Err(e) = fs::remove_dir_all(unsafe { OUTPUT_SCRIPT_CODE_DIR }) {
-                eprintln!("{}", e);
+                eprintln!("{}", Red.bold().paint(format!("{}", e)));
                 exit(-1)
             }
             if let Err(e) = fs::remove_dir_all(unsafe { OUTPUT_ENUM_CODE_DIR }) {
-                eprintln!("{}", e);
+                eprintln!("{}", Red.bold().paint(format!("{}", e)));
                 exit(-1)
             }
             if let Err(e) = fs::remove_dir_all(unsafe { REF_TEXT_DIR }) {
-                eprintln!("{}", e);
+                eprintln!("{}", Red.bold().paint(format!("{}", e)));
                 exit(-1)
             }
         }
@@ -474,7 +531,7 @@ fn test() {
     )
     .unwrap();
     if p.check() {
-        let _ = p.value(&mut display);
+        let _ = p.code_fmt(&mut display);
     } else {
         println!("check failed");
     }

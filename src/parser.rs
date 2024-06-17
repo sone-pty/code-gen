@@ -57,6 +57,14 @@ impl Parser {
 
 pub static PARSER: LazyLock<Parser> = LazyLock::new(Parser::new);
 
+pub fn parse_assign_with_type(
+    ty: &Box<value_type>,
+    vals: &str,
+) -> Result<Box<dyn Value>, error::Error> {
+    let vals = parse_value(vals, 0, 0)?;
+    get_value(ty, &vals)
+}
+
 pub fn parse_assign(expr: &str, row: usize, col: usize) -> Result<Box<dyn Value>, error::Error> {
     let parser = &*PARSER;
     let mut cursor = Cursor::new(expr, row, col, None);

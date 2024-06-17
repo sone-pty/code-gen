@@ -6,12 +6,12 @@ pub struct Bool {
 }
 
 impl Value for Bool {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -24,6 +24,17 @@ impl Value for Bool {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct Int {
@@ -32,12 +43,12 @@ pub struct Int {
 }
 
 impl Value for Int {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -50,6 +61,17 @@ impl Value for Int {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct Decimal {
@@ -58,12 +80,12 @@ pub struct Decimal {
 }
 
 impl Value for Decimal {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}m", self.val))?;
         Ok(())
     }
@@ -75,6 +97,16 @@ impl Value for Decimal {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}m", self.val))?;
+        Ok(())
+    }
 }
 
 pub struct UInt {
@@ -83,12 +115,12 @@ pub struct UInt {
 }
 
 impl Value for UInt {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -101,6 +133,17 @@ impl Value for UInt {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct Short {
@@ -109,12 +152,12 @@ pub struct Short {
 }
 
 impl Value for Short {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -127,6 +170,17 @@ impl Value for Short {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct UShort {
@@ -135,12 +189,12 @@ pub struct UShort {
 }
 
 impl Value for UShort {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -153,6 +207,17 @@ impl Value for UShort {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct Byte {
@@ -161,12 +226,12 @@ pub struct Byte {
 }
 
 impl Value for Byte {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -179,6 +244,17 @@ impl Value for Byte {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct SByte {
@@ -187,12 +263,12 @@ pub struct SByte {
 }
 
 impl Value for SByte {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}", self.val))
             .map_err(|e| e.into())
@@ -205,6 +281,17 @@ impl Value for SByte {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct Float {
@@ -213,12 +300,12 @@ pub struct Float {
 }
 
 impl Value for Float {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}f", self.val))
             .map_err(|e| e.into())
@@ -231,6 +318,17 @@ impl Value for Float {
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
     }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}f", self.val))
+            .map_err(|e| e.into())
+    }
 }
 
 pub struct Double {
@@ -239,12 +337,12 @@ pub struct Double {
 }
 
 impl Value for Double {
-    fn ty(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream.write_fmt(format_args!("{}", self.ty))?;
         Ok(())
     }
 
-    fn value(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+    fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
             .write_fmt(format_args!("{}d", self.val))
             .map_err(|e| e.into())
@@ -256,5 +354,16 @@ impl Value for Double {
 
     fn ty_info(&self) -> &TypeInfo {
         &self.ty
+    }
+
+    fn ty(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream.write_fmt(format_args!("{}", self.ty))?;
+        Ok(())
+    }
+
+    fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        stream
+            .write_fmt(format_args!("{}d", self.val))
+            .map_err(|e| e.into())
     }
 }
