@@ -19,7 +19,7 @@ impl<'a> Table<'a> {
         let mut template = None;
 
         for (flag, id) in sheets.into_iter() {
-            let table = excel.parse_sheet(*id)?;
+            let table = excel.parse_sheet(id)?;
 
             match flag.as_str() {
                 "Template" => {

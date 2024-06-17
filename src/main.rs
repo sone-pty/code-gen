@@ -160,7 +160,7 @@ fn process_lstring_xlsx<P: AsRef<Path> + Send + 'static>(
                         writeln!(file, "#region const keys");
 
                         for (_, id) in ret.into_iter() {
-                            if let Ok(table) = ff.parse_sheet(*id) {
+                            if let Ok(table) = ff.parse_sheet(id) {
                                 tables.push(table);
                             }
                         }
