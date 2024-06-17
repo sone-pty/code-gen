@@ -1,8 +1,6 @@
-use xlsx_read::excel_table::ExcelTable;
-
-use crate::{config::CFG, error::Error, util};
-
 use super::{RowData, Sheet, TableCore};
+use crate::{config::CFG, error::Error, util};
+use xlsx_read::excel_table::ExcelTable;
 
 pub struct GlobalConfig {
     name: String,
@@ -10,6 +8,10 @@ pub struct GlobalConfig {
 }
 
 impl TableCore for GlobalConfig {
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -34,7 +36,8 @@ impl TableCore for GlobalConfig {
         )?;
         writeln!(file, "")?;
 
-        for row in self.main.iter() {
+        let mut vals = Vec::with_capacity(self.main.row);
+        for (idx, row) in self.main.iter().skip(1).enumerate() {
             let cols: Vec<&str> = row.iter().collect::<Vec<_>>();
             unsafe {
                 let ident = cols.get_unchecked(0);
@@ -43,7 +46,18 @@ impl TableCore for GlobalConfig {
                 let desc = cols.get_unchecked(3);
                 let modify = cols.get_unchecked(4);
                 let value_ty = crate::parser::parse_type(*ty, 0, 0)?;
-                let value = crate::parser::parse_assign_with_type(&value_ty, val)?;
+                let value = match crate::parser::parse_assign_with_type(&value_ty, val) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        return Err(format!(
+                            "In table {}, the Cell.({}, 3) parse failed: {}",
+                            self.name,
+                            idx + 1,
+                            e
+                        )
+                        .into())
+                    }
+                };
 
                 writeln!(file, "    /// <summary>")?;
                 writeln!(file, "    /// {}", desc)?;
@@ -62,9 +76,22 @@ impl TableCore for GlobalConfig {
                     value.code(file)?;
                     writeln!(file, ";")?;
                 }
+                vals.push((ident.to_string(), value, *modify == "0"));
             }
         }
 
+        writeln!(file, "")?;
+        writeln!(file, "    public void Init()")?;
+        writeln!(file, "    {{")?;
+        for (ident, value, modify) in vals.iter() {
+            if *modify {
+                write!(file, "        {} = ", ident)?;
+                value.code(file)?;
+                writeln!(file, ";")?;
+            }
+        }
+        writeln!(file, "    }}")?;
+        write!(file, "}}")?;
         Ok(())
     }
 
@@ -76,8 +103,8 @@ impl TableCore for GlobalConfig {
         let col = table.width();
 
         let data = unsafe {
-            let mut raw = Box::<[RowData]>::new_uninit_slice(row - 1);
-            for r in 1..row {
+            let mut raw = Box::<[RowData]>::new_uninit_slice(row);
+            for r in 0..row {
                 let mut row_data = Box::<[String]>::new_uninit_slice(col);
                 for c in 0..col {
                     row_data[c].as_mut_ptr().write(

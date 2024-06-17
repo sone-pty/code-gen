@@ -11,9 +11,8 @@ mod template;
 pub trait TableCore {
     fn name(&self) -> &str;
     fn build(&self, stream: &mut dyn std::io::Write, is_server: bool) -> Result<(), Error>;
-    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error>
-    where
-        Self: Sized;
+    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error> where Self: Sized;
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any; 
 }
 
 pub struct Table {
@@ -24,7 +23,7 @@ impl Table {
     pub fn load<P: AsRef<Path>>(path: P, name: &str) -> Result<Self, Error> {
         let mut excel = ExcelFile::load_from_path(path)?;
         let sheets = excel.parse_workbook()?;
-        let mut core = None;
+        let mut core: Option<Box<dyn TableCore>> = None;
 
         for (flag, id) in sheets.into_iter() {
             let table = excel.parse_sheet(id)?;
@@ -34,6 +33,11 @@ impl Table {
                 }
                 "GlobalConfig" => {
                     core = Some(Box::new(GlobalConfig::load(&table, name)?) as _);
+                }
+                v if v.starts_with("t_") => {
+                    debug_assert_eq!(core.is_some(), true);
+                    //let concreate = unsafe { core.as_mut().ok_or::<Error>("".into())?.as_mut_any().downcast_mut_unchecked::<Template>() };
+                    //concreate.load_enums(sheet);
                 }
                 _ => return Err(format!("In table {}, No valid sheet name found", name).into()),
             }
@@ -51,6 +55,13 @@ impl Table {
             }
         }
         Err("Lack of `EOF` flag".into())
+    }
+
+    pub fn build(&self, stream: &mut dyn std::io::Write, is_server: bool) -> Result<(), Error> {
+        let Some(ref core) = self.core else {
+            return Err("the core of Table is None".into());
+        };
+        core.build(stream, is_server)
     }
 }
 

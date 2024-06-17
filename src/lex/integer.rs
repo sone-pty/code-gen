@@ -18,6 +18,12 @@ impl<'a, M> Tokenizer<'a, CData<'a>, M> for Integer {
         cursor: &mut Cursor<'a>,
         _: &mut M,
     ) -> Option<Result<Token<'a, CData<'a>>, ParseError>> {
+        let mut minus = false;
+        while cursor.first() == '-' {
+            minus = !minus;
+            cursor.bump();
+        }
+
         let first = cursor.first();
         if !first.is_ascii_digit() {
             return None;
@@ -61,9 +67,10 @@ impl<'a, M> Tokenizer<'a, CData<'a>, M> for Integer {
                         }));
                     }
                     let len = cursor.offset() - integer_offset;
-                    let data = Data::Custom(CData::Digits(unsafe {
-                        cursor.sub_content(integer_offset, len)
-                    }));
+                    let data = Data::Custom(CData::Digits(
+                        unsafe { cursor.sub_content(integer_offset, len) },
+                        minus,
+                    ));
                     return Some(Ok(Token::from_cursor(
                         cursor,
                         KIND_BIN_INTEGER,
@@ -101,9 +108,10 @@ impl<'a, M> Tokenizer<'a, CData<'a>, M> for Integer {
                         }));
                     }
                     let len = cursor.offset() - integer_offset;
-                    let data = Data::Custom(CData::Digits(unsafe {
-                        cursor.sub_content(integer_offset, len)
-                    }));
+                    let data = Data::Custom(CData::Digits(
+                        unsafe { cursor.sub_content(integer_offset, len) },
+                        minus,
+                    ));
                     return Some(Ok(Token::from_cursor(
                         cursor,
                         KIND_OCT_INTEGER,
@@ -135,9 +143,10 @@ impl<'a, M> Tokenizer<'a, CData<'a>, M> for Integer {
                         }));
                     }
                     let len = cursor.offset() - integer_offset;
-                    let data = Data::Custom(CData::Digits(unsafe {
-                        cursor.sub_content(integer_offset, len)
-                    }));
+                    let data = Data::Custom(CData::Digits(
+                        unsafe { cursor.sub_content(integer_offset, len) },
+                        minus,
+                    ));
                     return Some(Ok(Token::from_cursor(
                         cursor,
                         KIND_HEX_INTEGER,
@@ -199,6 +208,7 @@ impl<'a, M> Tokenizer<'a, CData<'a>, M> for Integer {
                     unsafe {
                         cursor.sub_content(exponent_offset, cursor.offset() - exponent_offset)
                     },
+                    minus,
                 ));
                 return Some(Ok(Token::from_cursor(
                     cursor,
@@ -212,9 +222,10 @@ impl<'a, M> Tokenizer<'a, CData<'a>, M> for Integer {
             _ => (),
         }
 
-        let data = Data::Custom(CData::Digits(unsafe {
-            cursor.sub_content(integer_offset, integer_len)
-        }));
+        let data = Data::Custom(CData::Digits(
+            unsafe { cursor.sub_content(integer_offset, integer_len) },
+            minus,
+        ));
 
         Some(Ok(Token::from_cursor(
             cursor,

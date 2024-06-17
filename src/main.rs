@@ -1,5 +1,6 @@
 #![feature(lazy_cell)]
 #![feature(new_uninit)]
+#![feature(downcast_unchecked)]
 
 use std::{
     collections::HashSet,
@@ -439,6 +440,10 @@ fn load_tables<P: AsRef<Path>>(
     Ok(tables)
 }
 
+fn build(tables: &[Table]) -> Result<(), error::Error> {
+    Ok(())
+}
+
 #[derive(Default)]
 struct ExcludedFolders<'a>(HashSet<&'a str>);
 
@@ -525,7 +530,7 @@ fn main() {
 fn test() {
     let mut display = String::new();
     let p = parser::parse_assign(
-        r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {1,2}, 100} "#,
+        r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {-1,-2}, 100} "#,
         0,
         0,
     )
@@ -536,4 +541,15 @@ fn test() {
         println!("check failed");
     }
     println!("{}", display);
+}
+
+#[test]
+fn generate() {
+    let path = "D:\\taiwu\\config\\GlobalConfig.xlsx";
+    let table = Table::load(path, "GlobalConfig").unwrap();
+    let mut dest = std::fs::File::options().write(true).truncate(true).open("output.cs").unwrap();
+    match table.build(&mut dest, false) {
+        Ok(_) => {}
+        Err(e) => println!("{}", e),
+    }
 }

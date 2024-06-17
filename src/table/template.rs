@@ -23,6 +23,11 @@ pub struct Template {
 }
 
 impl Template {
+    pub fn load_enums(&mut self, sheet: Sheet) -> Result<(), Error> {
+        self.enums.push(sheet);
+        Ok(())
+    }
+
     fn load_template(table: &ExcelTable, name: &str) -> Result<Self, Error> {
         let (mut refs, mut max_ref_num, mut ref_file) = Self::load_refs(name)?;
         let row = Table::get_sheet_height(table)?;
@@ -32,8 +37,8 @@ impl Template {
 
         // build row data
         let data = unsafe {
-            let mut raw = Box::<[RowData]>::new_uninit_slice(row - CFG.row_of_start);
-            for r in CFG.row_of_start..row {
+            let mut raw = Box::<[RowData]>::new_uninit_slice(row);
+            for r in 0..row {
                 let mut row_data = Box::<[String]>::new_uninit_slice(col);
                 for c in 0..col {
                     row_data[c].as_mut_ptr().write(
@@ -173,6 +178,10 @@ impl Template {
 }
 
 impl TableCore for Template {
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn name(&self) -> &str {
         &self.name
     }

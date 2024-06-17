@@ -259,7 +259,7 @@ impl Value for Byte {
 
 pub struct SByte {
     pub ty: TypeInfo,
-    pub val: u32,
+    pub val: i8,
 }
 
 impl Value for SByte {

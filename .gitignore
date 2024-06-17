@@ -14,3 +14,4 @@ build*.sh
 run.sh
 /Data
 ConfigCollection.cs
+output.cs

@@ -13,7 +13,7 @@ impl Value for SString {
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
         stream
-            .write_fmt(format_args!("{}", self.val))
+            .write_fmt(format_args!("\"{}\"", self.val))
             .map_err(|e| e.into())
     }
 
@@ -32,7 +32,7 @@ impl Value for SString {
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
         stream
-            .write_fmt(format_args!("{}", self.val))
+            .write_fmt(format_args!("\"{}\"", self.val))
             .map_err(|e| e.into())
     }
 }

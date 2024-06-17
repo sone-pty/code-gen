@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{str::FromStr, sync::LazyLock};
+use std::{ops::Neg, str::FromStr, sync::LazyLock};
 
 use vnlex::{
     cursor::Cursor,
@@ -61,8 +61,11 @@ pub fn parse_assign_with_type(
     ty: &Box<value_type>,
     vals: &str,
 ) -> Result<Box<dyn Value>, error::Error> {
-    let vals = parse_value(vals, 0, 0)?;
-    get_value(ty, &vals)
+    let box_vals = parse_value(vals, 0, 0)?;
+    match get_value(ty, &box_vals) {
+        Ok(e) => Ok(e),
+        e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
+    }
 }
 
 pub fn parse_assign(expr: &str, row: usize, col: usize) -> Result<Box<dyn Value>, error::Error> {
@@ -165,7 +168,7 @@ fn parse_array_type(ty: &Box<array_type>) -> Result<TypeInfo, error::Error> {
         array_type::p0(ty, _, _) => Ok(TypeInfo::Array(Box::new(get_value_type(ty)?))),
         array_type::p1(ty, _, nums, _) => Ok(TypeInfo::FixedArray(
             Box::new(get_value_type(ty)?),
-            get_integer_value(nums)?,
+            get_non_neg_integer_value(nums)?,
         )),
     }
 }
@@ -229,7 +232,40 @@ fn get_value(ty: &Box<value_type>, vals: &Box<values>) -> Result<Box<dyn Value>,
     }
 }
 
-fn get_integer_value<T: FromStr>(val: &Box<integer_literal>) -> Result<T, error::Error> {
+fn get_integer_value<T: FromStr + Neg<Output = T>>(
+    val: &Box<integer_literal>,
+) -> Result<T, error::Error> {
+    match val.as_ref() {
+        states::nodes::integer_literal::p0(_) => todo!(),
+        states::nodes::integer_literal::p1(_, _) => todo!(),
+        states::nodes::integer_literal::p2(_) => todo!(),
+        states::nodes::integer_literal::p3(_, _) => todo!(),
+        states::nodes::integer_literal::p4(v) => {
+            let (_, minus) = v
+                .as_ref()
+                .0
+                .data
+                .get_custom()
+                .ok_or::<error::Error>("get custom cdata failed".into())?
+                .into_digits()
+                .ok_or::<error::Error>("".into())?;
+            if minus {
+                Ok(-v.0.content.parse::<T>().map_err::<error::Error, _>(|_| {
+                    format!("parse integer value failed: `{}`", v.as_ref().0.content).into()
+                })?)
+            } else {
+                Ok(v.0.content.parse::<T>().map_err::<error::Error, _>(|_| {
+                    format!("parse integer value failed: `{}`", v.as_ref().0.content).into()
+                })?)
+            }
+        }
+        states::nodes::integer_literal::p5(_, _) => todo!(),
+        states::nodes::integer_literal::p6(_) => todo!(),
+        states::nodes::integer_literal::p7(_, _) => todo!(),
+    }
+}
+
+fn get_non_neg_integer_value<T: FromStr>(val: &Box<integer_literal>) -> Result<T, error::Error> {
     match val.as_ref() {
         states::nodes::integer_literal::p0(_) => todo!(),
         states::nodes::integer_literal::p1(_, _) => todo!(),
@@ -304,18 +340,24 @@ fn parse_enum_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
 }
 
 fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
-    let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
-    };
-
-    let literal_vals::p3(string_vals) = literal_vals.as_ref() else {
-        return Err("".into());
-    };
-
-    Ok(Box::new(SString {
-        ty,
-        val: string_vals.as_ref().0.content.into(),
-    }) as _)
+    match vals.as_ref() {
+        values::p0(literal_vals) => {
+            let literal_vals::p3(string_vals) = literal_vals.as_ref() else {
+                return Err("".into());
+            };
+            Ok(Box::new(SString {
+                ty,
+                val: string_vals.as_ref().0.content.into(),
+            }) as _)
+        },
+        values::p2(ident) => {
+            Ok(Box::new(SString {
+                ty,
+                val: ident.as_ref().0.content.into(),
+            }) as _)
+        },
+        _ => return Err("".into()),
+    }
 }
 
 fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
@@ -341,7 +383,7 @@ fn parse_uint_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
         return Err("".into());
     };
-    let val = get_integer_value(integer_vals)?;
+    let val = get_non_neg_integer_value(integer_vals)?;
     Ok(Box::new(UInt { ty, val }) as _)
 }
 
@@ -366,7 +408,7 @@ fn parse_ushort_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
         return Err("".into());
     };
-    let val = get_integer_value(integer_vals)?;
+    let val = get_non_neg_integer_value(integer_vals)?;
     Ok(Box::new(UShort { ty, val }) as _)
 }
 
@@ -379,7 +421,7 @@ fn parse_byte_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
         return Err("".into());
     };
 
-    let val = get_integer_value(integer_vals)?;
+    let val = get_non_neg_integer_value(integer_vals)?;
     Ok(Box::new(Byte { ty, val }) as _)
 }
 
@@ -686,24 +728,24 @@ fn parse_float_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
         return Err("".into());
     };
 
-    let literal_vals::p2(float_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+    let val = match literal_vals.as_ref() {
+        literal_vals::p1(integer_vals) => get_integer_value(integer_vals)?,
+        literal_vals::p2(float_vals) => match float_vals.as_ref() {
+            states::nodes::float_literal::p0(v) => v.as_ref().0.content.parse()?,
+            states::nodes::float_literal::p1(v, _) => v.as_ref().0.content.parse()?,
+            states::nodes::float_literal::p2(v1, _, v2) => {
+                format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse()?
+            }
+            states::nodes::float_literal::p3(v1, _, v2, _) => {
+                format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse()?
+            }
+            states::nodes::float_literal::p4(_, _, _) => todo!(),
+            states::nodes::float_literal::p5(_, _, _, _) => todo!(),
+        },
+        _ => return Err("".into()),
     };
 
-    let val = match float_vals.as_ref() {
-        states::nodes::float_literal::p0(v) => v.as_ref().0.content.parse::<f32>()?,
-        states::nodes::float_literal::p1(v, _) => v.as_ref().0.content.parse::<f32>()?,
-        states::nodes::float_literal::p2(v1, _, v2) => {
-            format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse::<f32>()?
-        }
-        states::nodes::float_literal::p3(v1, _, v2, _) => {
-            format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse::<f32>()?
-        }
-        states::nodes::float_literal::p4(_, _, _) => todo!(),
-        states::nodes::float_literal::p5(_, _, _, _) => todo!(),
-    };
-
-    Ok(Box::new(Float { ty, val: val as _ }) as _)
+    Ok(Box::new(Float { ty, val, }) as _)
 }
 
 fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
@@ -711,22 +753,22 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
         return Err("".into());
     };
 
-    let literal_vals::p2(float_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+    let val = match literal_vals.as_ref() {
+        literal_vals::p1(integer_vals) => get_integer_value(integer_vals)?,
+        literal_vals::p2(float_vals) => match float_vals.as_ref() {
+            states::nodes::float_literal::p0(v) => v.as_ref().0.content.parse()?,
+            states::nodes::float_literal::p1(v, _) => v.as_ref().0.content.parse()?,
+            states::nodes::float_literal::p2(v1, _, v2) => {
+                format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse()?
+            }
+            states::nodes::float_literal::p3(v1, _, v2, _) => {
+                format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse()?
+            }
+            states::nodes::float_literal::p4(_, _, _) => todo!(),
+            states::nodes::float_literal::p5(_, _, _, _) => todo!(),
+        },
+        _ => return Err("".into()),
     };
 
-    let val = match float_vals.as_ref() {
-        states::nodes::float_literal::p0(v) => v.as_ref().0.content.parse::<f64>()?,
-        states::nodes::float_literal::p1(v, _) => v.as_ref().0.content.parse::<f64>()?,
-        states::nodes::float_literal::p2(v1, _, v2) => {
-            format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse::<f64>()?
-        }
-        states::nodes::float_literal::p3(v1, _, v2, _) => {
-            format!("{}.{}", v1.as_ref().0.content, v2.as_ref().0.content).parse::<f64>()?
-        }
-        states::nodes::float_literal::p4(_, _, _) => todo!(),
-        states::nodes::float_literal::p5(_, _, _, _) => todo!(),
-    };
-
-    Ok(Box::new(Double { ty, val: val as _ }) as _)
+    Ok(Box::new(Double { ty, val, }) as _)
 }
