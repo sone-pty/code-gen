@@ -1,25 +1,41 @@
 use crate::{config::CFG, error::Error, lex::states::nodes::value_type, types::Value};
 use global_config::GlobalConfig;
 use std::path::Path;
-use template::Template;
+use template::{Enums, Template};
 use xlsx_read::{excel_file::ExcelFile, excel_table::ExcelTable};
 
 mod global_config;
 mod template;
 
+pub struct Generator {
+    entities: ExcelTable,
+}
+
+impl Generator {
+    
+}
+
 #[allow(dead_code)]
 pub trait TableCore {
     fn name(&self) -> &str;
-    fn build(&self, stream: &mut dyn std::io::Write, is_server: bool) -> Result<(), Error>;
-    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error> where Self: Sized;
-    fn as_mut_any(&mut self) -> &mut dyn std::any::Any; 
+    fn build(&self) -> Result<(), Error>;
+    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error>
+    where
+        Self: Sized;
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
 }
 
 pub struct Table {
     core: Option<Box<dyn TableCore>>,
 }
 
+unsafe impl Send for Table {}
+
 impl Table {
+    pub fn name(&self) -> Result<&str, Error> {
+        Ok(self.core.as_ref().ok_or::<Error>("".into())?.name())
+    }
+
     pub fn load<P: AsRef<Path>>(path: P, name: &str) -> Result<Self, Error> {
         let mut excel = ExcelFile::load_from_path(path)?;
         let sheets = excel.parse_workbook()?;
@@ -36,10 +52,19 @@ impl Table {
                 }
                 v if v.starts_with("t_") => {
                     debug_assert_eq!(core.is_some(), true);
-                    //let concreate = unsafe { core.as_mut().ok_or::<Error>("".into())?.as_mut_any().downcast_mut_unchecked::<Template>() };
-                    //concreate.load_enums(sheet);
+                    let concrete = unsafe { core.as_mut().ok_or::<Error>("".into())?.as_mut_any().downcast_mut_unchecked::<Template>() };
+                    match concrete.enums {
+                        Some(ref mut enums) => {
+                            enums.load_enum(&table, &v[2..])?;
+                        }
+                        None => {
+                            let mut enums = Enums::new();
+                            enums.load_enum(&table, &v[2..])?;
+                            concrete.enums = Some(enums);
+                        }
+                    }
                 }
-                _ => return Err(format!("In table {}, No valid sheet name found", name).into()),
+                v => {}
             }
         }
         Ok(Self { core })
@@ -57,11 +82,12 @@ impl Table {
         Err("Lack of `EOF` flag".into())
     }
 
-    pub fn build(&self, stream: &mut dyn std::io::Write, is_server: bool) -> Result<(), Error> {
+    pub fn build(&self) -> Result<(), Error> {
         let Some(ref core) = self.core else {
             return Err("the core of Table is None".into());
         };
-        core.build(stream, is_server)
+        core.build()?;
+        Ok(())
     }
 }
 
@@ -106,6 +132,14 @@ impl Sheet {
         SheetIter {
             view: &self.data,
             r: 0,
+        }
+    }
+
+    pub fn cell(&self, col: usize, row: usize) -> Result<&str, Error> {
+        if col < self.col && row < self.row {
+            self.data[row].value(col)
+        } else {
+            Err("Index was out of range".into())
         }
     }
 }

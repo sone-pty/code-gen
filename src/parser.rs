@@ -349,13 +349,11 @@ fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
                 ty,
                 val: string_vals.as_ref().0.content.into(),
             }) as _)
-        },
-        values::p2(ident) => {
-            Ok(Box::new(SString {
-                ty,
-                val: ident.as_ref().0.content.into(),
-            }) as _)
-        },
+        }
+        values::p2(ident) => Ok(Box::new(SString {
+            ty,
+            val: ident.as_ref().0.content.into(),
+        }) as _),
         _ => return Err("".into()),
     }
 }
@@ -745,7 +743,7 @@ fn parse_float_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
         _ => return Err("".into()),
     };
 
-    Ok(Box::new(Float { ty, val, }) as _)
+    Ok(Box::new(Float { ty, val }) as _)
 }
 
 fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
@@ -770,5 +768,5 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
         _ => return Err("".into()),
     };
 
-    Ok(Box::new(Double { ty, val, }) as _)
+    Ok(Box::new(Double { ty, val }) as _)
 }

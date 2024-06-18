@@ -4,10 +4,11 @@
 
 use std::{
     collections::HashSet,
-    fs::{self, File},
-    path::{Path, PathBuf},
+    fs::{self},
+    io::Write,
+    path::Path,
     process::{exit, Command},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     thread::JoinHandle,
 };
 
@@ -15,11 +16,10 @@ use ansi_term::Colour::Red;
 use args::{Args, LanguageOption};
 use clap::Parser;
 use config::{
-    CFG, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SCRIPT_CODE_DIR,
+    CFG, CONFIG_COLLECTION_PATH, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SCRIPT_CODE_DIR,
     OUTPUT_SERVER_ENUM_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR, REF_TEXT_DIR, SOURCE_XLSXS_DIR,
 };
 use table::Table;
-use xlsx_read::{excel_file::ExcelFile, excel_table::ExcelTable};
 
 mod args;
 mod config;
@@ -30,6 +30,24 @@ mod preconfig;
 mod table;
 mod types;
 mod util;
+
+pub static THREADS: LazyLock<rayon::ThreadPool> = LazyLock::new(|| {
+    let cpu_threads = match std::thread::available_parallelism() {
+        Ok(num) => num.get(),
+        Err(e) => {
+            eprintln!(
+                "Unable to get the number of available parallelism units: {}",
+                e
+            );
+            32
+        }
+    };
+    println!("use {} threads", cpu_threads);
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(cpu_threads)
+        .build()
+        .unwrap()
+});
 
 fn create_dest_dirs(args: &Args) {
     if let Err(_) = fs::metadata(unsafe { OUTPUT_SCRIPT_CODE_DIR }) {
@@ -102,212 +120,72 @@ fn update_git() {
     println!("{}", String::from_utf8_lossy(&output.stdout));
 }
 
-#[allow(unused_must_use)]
-fn process_lstring_xlsx<P: AsRef<Path> + Send + 'static>(
-    path: P,
-    sx: std::sync::mpsc::Sender<JoinHandle<()>>,
-    langdir: String,
-) {
-    use std::io::Write;
-    let handle = std::thread::spawn(move || {
-        let file = ExcelFile::load_from_path(path);
-        let mut tables = Vec::<ExcelTable>::default();
+fn load_tables<P: AsRef<Path>>(
+    dir: P,
+    tx: std::sync::mpsc::Sender<JoinHandle<()>>,
+    excluded: Arc<ExcludedFolders<'static>>,
+    tables: Arc<util::AtomicLinkedList<Table>>,
+) -> Result<(), error::Error> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = path
+            .file_name()
+            .ok_or::<error::Error>(
+                format!("path terminates in .. : `{:?}`", path.as_os_str()).into(),
+            )?
+            .to_str()
+            .ok_or::<error::Error>("invalid unicode".into())?;
 
-        if let Ok(mut ff) = file {
-            match ff.parse_workbook() {
-                Ok(ret) => {
-                    let output_path = format!(
-                        "{}/{}.{}",
-                        unsafe { OUTPUT_SCRIPT_CODE_DIR },
-                        "LanguageKey",
-                        CFG.language_file_suffix
-                    );
-
-                    let output_cn_path = format!(
-                        "{}/{}/{}.{}",
-                        langdir, "Language_CN", CFG.language_file_name, CFG.language_file_suffix,
-                    );
-                    let output_cnh_path = format!(
-                        "{}/{}/{}.{}",
-                        langdir, "Language_CNH", CFG.language_file_name, CFG.language_file_suffix,
-                    );
-                    let output_en_path = format!(
-                        "{}/{}/{}.{}",
-                        langdir, "Language_EN", CFG.language_file_name, CFG.language_file_suffix,
-                    );
-                    let output_jp_path = format!(
-                        "{}/{}/{}.{}",
-                        langdir, "Language_JP", CFG.language_file_name, CFG.language_file_suffix,
-                    );
-
-                    if let (
-                        Ok(mut file),
-                        Ok(mut cn_file),
-                        Ok(mut cnh_file),
-                        Ok(mut en_file),
-                        Ok(mut jp_file),
-                    ) = (
-                        File::create(output_path),
-                        File::create(output_cn_path),
-                        File::create(output_cnh_path),
-                        File::create(output_en_path),
-                        File::create(output_jp_path),
-                    ) {
-                        writeln!(file, "{}", CFG.file_banner);
-                        writeln!(file, "using System.Collections.Generic;");
-                        writeln!(file, "// ReSharper disable InconsistentNaming");
-                        writeln!(file, "// ReSharper disable IdentifierTypo");
-                        writeln!(file, "// ReSharper disable StringLiteralTypo");
-                        writeln!(file, "public class LanguageKey");
-                        writeln!(file, "{{");
-                        writeln!(file, "#region const keys");
-
-                        for (_, id) in ret.into_iter() {
-                            if let Ok(table) = ff.parse_sheet(id) {
-                                tables.push(table);
-                            }
-                        }
-
-                        let mut count = 0;
-                        for table in tables.iter() {
-                            let height = table.height();
-                            for row in 2..height {
-                                table.cell(0, row).map(|v| {
-                                    writeln!(file, "    public const ushort {} = {};", v, count);
-                                    count += 1;
-                                });
-
-                                /* lang file */
-
-                                // CN
-                                table.cell(1, row).map(|v| {
-                                    writeln!(cn_file, "{}", v.as_str());
-                                });
-                                // CNH
-                                table.cell(2, row).map(|v| {
-                                    writeln!(cnh_file, "{}", v.as_str());
-                                });
-                                // EN
-                                table.cell(3, row).map(|v| {
-                                    writeln!(en_file, "{}", v.as_str());
-                                });
-                                // JP
-                                table.cell(4, row).map(|v| {
-                                    writeln!(jp_file, "{}", v.as_str());
-                                });
-
-                                /* lang file */
-                            }
-                        }
-
-                        writeln!(file, "    public const ushort Invalid = ushort.MaxValue;");
-                        writeln!(file, "#endregion");
-                        writeln!(file, "");
-                        writeln!(
-                            file,
-                            "    public static ushort LanguageKeyToId(string languageKey)"
-                        );
-                        writeln!(file, "    {{");
-                        writeln!(
-                            file,
-                            "        if (_filedIdMap.TryGetValue(languageKey, out ushort id))"
-                        );
-                        writeln!(file, "            return id;");
-                        writeln!(file, "        return Invalid;");
-                        writeln!(file, "    }}");
-                        writeln!(file, "");
-
-                        writeln!(file, "    private static readonly Dictionary<string,ushort> _filedIdMap = new Dictionary<string,ushort>()");
-                        writeln!(file, "    {{");
-                        for table in tables.iter() {
-                            let height = table.height();
-                            for row in 2..height {
-                                table.cell(0, row).map(|v| {
-                                    writeln!(file, "        {{\"{}\", {}}},", v, v);
-                                });
-                            }
-                        }
-                        writeln!(file, "    }};");
-                        writeln!(file, "}}");
-                    }
-                }
-                _ => {}
-            }
+        // ban-lists
+        if config::TABLE_XLSX_FILTER.contains(file_name) {
+            continue;
         }
-    });
 
-    sx.send(handle).unwrap();
+        if path.is_dir() && !file_name.starts_with('.') && !excluded.0.contains(file_name) {
+            let tx_clone = tx.clone();
+            let excluded_clone = excluded.clone();
+            let tables_clone = tables.clone();
+            let _ = tx.send(std::thread::spawn(move || {
+                match load_tables(path, tx_clone, excluded_clone, tables_clone) {
+                    Err(e) => {
+                        eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
+                        exit(-1);
+                    }
+                    _ => {}
+                }
+            }));
+        } else if path
+            .extension()
+            .is_some_and(|x| x.to_str().is_some_and(|x| x == CFG.source_table_suffix))
+            && !file_name.starts_with('~')
+        {
+            let idx = file_name
+                .find('.')
+                .ok_or::<error::Error>("can't find `.` in xlsx file name".into())?;
+            let file_name = &file_name[..idx];
+            tables.push(Table::load(&path, file_name.into())?);
+        }
+    }
+    Ok(())
 }
 
-fn process_config_collection<P: AsRef<Path> + Send + 'static>(
-    path: P,
-    sx: std::sync::mpsc::Sender<JoinHandle<()>>,
-    src: &'static str,
-    excluded: Arc<ExcludedFolders<'static>>,
-) {
-    use std::io::Write;
-    let handle = std::thread::spawn(move || {
-        if let Ok(mut file) = File::options()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)
-        {
-            let mut dirs = Vec::new();
-            let mut names = Vec::new();
-            let dir = fs::read_dir(src);
-
-            if dir.is_err() {
-                eprintln!(
-                    "{}",
-                    Red.bold().paint(format!(
-                        "[Error]: An error occurred while processing ConfigCollection: {}",
-                        dir.unwrap_err()
-                    ))
-                );
-            } else {
-                let dir = dir.unwrap();
-                dirs.push(dir);
-
-                while !dirs.is_empty() {
-                    let dir = dirs.pop().unwrap();
-
-                    for entry in dir {
-                        let entry = entry.unwrap();
-                        let path = entry.path();
-                        let base_name = path.file_name().unwrap().to_str().unwrap();
-                        let idx = base_name.find('.').unwrap_or_default();
-
-                        if config::TABLE_XLSX_FILTER.contains(base_name) {
-                            continue;
-                        }
-
-                        if path.is_dir()
-                            && !path.file_name().is_some_and(|v| {
-                                v.to_str().is_some_and(|vv| {
-                                    vv.starts_with('.') || excluded.0.contains(vv)
-                                })
-                            })
-                        {
-                            let d = fs::read_dir(path).unwrap();
-                            dirs.push(d);
-                        } else if path
-                            .extension()
-                            .is_some_and(|x| x.to_str().unwrap() == CFG.source_table_suffix)
-                            && !path
-                                .file_name()
-                                .is_some_and(|v| v.to_str().is_some_and(|vv| vv.starts_with('~')))
-                        {
-                            names.push((&base_name[..idx]).to_string());
-                        }
-                    }
-                }
-            }
-
-            let _ = std::io::Write::write(&mut file, CFG.file_banner.as_bytes());
-            let _ = std::io::Write::write(
-                &mut file,
-                r##"
+fn build(tables: Arc<util::AtomicLinkedList<Table>>) -> Result<(), error::Error> {
+    // SAFETY: no data-race here, read-only
+    let tables = unsafe {
+        Arc::into_inner(tables)
+            .ok_or::<error::Error>("".into())?
+            .into_unsafe_vector()
+    };
+    // generate ConfigCollection.cs
+    let mut file = std::fs::File::options()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(unsafe { CONFIG_COLLECTION_PATH })?;
+    file.write_fmt(format_args!("{}{}", CFG.file_banner, CFG.line_end_flag))?;
+    file.write(
+        r##"
 using Config.Common;
 using System.Collections.Generic;
 
@@ -323,124 +201,75 @@ namespace Config
         /// </summary>
         public static readonly IConfigData[] Items = new IConfigData[]
         {"##
-                .as_bytes(),
-            );
+        .as_bytes(),
+    )?;
 
-            // TODO: 临时代码
-            let _ = file.write_fmt(format_args!("\n\t\t\tLocalSurnames.Instance,"));
-            let _ = file.write_fmt(format_args!("\n\t\t\tLocalNames.Instance,"));
-            let _ = file.write_fmt(format_args!("\n\t\t\tLocalZangNames.Instance,"));
-            let _ = file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"));
-            let _ = file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"));
+    // TODO: 临时代码
+    file.write_fmt(format_args!("\n\t\t\tLocalSurnames.Instance,"))?;
+    file.write_fmt(format_args!("\n\t\t\tLocalNames.Instance,"))?;
+    file.write_fmt(format_args!("\n\t\t\tLocalZangNames.Instance,"))?;
+    file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"))?;
+    file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"))?;
 
-            for v in names.iter() {
-                let _ = file.write_fmt(format_args!("\n\t\t\t{}.Instance,", v));
-            }
-            let _ = file.write("\n\t\t".as_bytes());
-            let _ = file.write(r##"};
+    for option_name in tables.iter().map(|v| v.name()) {
+        let name = option_name?;
+        file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
+    }
+
+    file.write("\n\t\t".as_bytes())?;
+    file.write(r##"};
 
         /// <summary>
         /// 配置数据名称表
         /// </summary>
         public static readonly Dictionary<string, IConfigData> NameMap = new Dictionary<string, IConfigData>()
-        {"##.as_bytes());
+        {"##.as_bytes())?;
 
-            // TODO: 临时代码
-            let _ = file.write_fmt(format_args!(
-                "\n\t\t\t{{\"{}\", {}.Instance}},",
-                "LocalSurnames", "LocalSurnames"
-            ));
-            let _ = file.write_fmt(format_args!(
-                "\n\t\t\t{{\"{}\", {}.Instance}},",
-                "LocalNames", "LocalNames"
-            ));
-            let _ = file.write_fmt(format_args!(
-                "\n\t\t\t{{\"{}\", {}.Instance}},",
-                "LocalZangNames", "LocalZangNames"
-            ));
-            let _ = file.write_fmt(format_args!(
-                "\n\t\t\t{{\"{}\", {}.Instance}},",
-                "LocalTownNames", "LocalTownNames"
-            ));
-            let _ = file.write_fmt(format_args!(
-                "\n\t\t\t{{\"{}\", {}.Instance}},",
-                "LocalMonasticTitles", "LocalMonasticTitles"
-            ));
+    // TODO: 临时代码
+    file.write_fmt(format_args!(
+        "\n\t\t\t{{\"{}\", {}.Instance}},",
+        "LocalSurnames", "LocalSurnames"
+    ))?;
+    file.write_fmt(format_args!(
+        "\n\t\t\t{{\"{}\", {}.Instance}},",
+        "LocalNames", "LocalNames"
+    ))?;
+    file.write_fmt(format_args!(
+        "\n\t\t\t{{\"{}\", {}.Instance}},",
+        "LocalZangNames", "LocalZangNames"
+    ))?;
+    file.write_fmt(format_args!(
+        "\n\t\t\t{{\"{}\", {}.Instance}},",
+        "LocalTownNames", "LocalTownNames"
+    ))?;
+    file.write_fmt(format_args!(
+        "\n\t\t\t{{\"{}\", {}.Instance}},",
+        "LocalMonasticTitles", "LocalMonasticTitles"
+    ))?;
 
-            for v in names.iter() {
-                let _ = file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", v, v));
-            }
-
-            let _ = file.write("\n\t\t".as_bytes());
-            let _ = file.write(
-                r##"};
+    for option_name in tables.iter().map(|v| v.name()) {
+        let name = option_name?;
+        file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
+    }
+    file.write("\n\t\t".as_bytes())?;
+    file.write(
+        r##"};
     }
 }"##
-                .as_bytes(),
-            );
+        .as_bytes(),
+    )?;
+    file.flush()?;
 
-            let _ = file.flush();
-        } else {
-            eprintln!(
-                "{}",
-                Red.bold().paint(format!(
-                    "[Error]: Please provide the save path of ConfigCollection"
-                ))
-            )
-        }
+    // generate the rest
+    tables.into_iter().for_each(|v| {
+        THREADS.spawn(move || match v.build() {
+            Err(e) => {
+                eprintln!("{}", Red.bold().paint(format!("{}", e)));
+            }
+            _ => {}
+        });
     });
 
-    sx.send(handle).unwrap();
-}
-
-fn load_tables<P: AsRef<Path>>(
-    dir: P,
-    tx: std::sync::mpsc::Sender<JoinHandle<()>>,
-    excluded: Arc<ExcludedFolders<'static>>,
-) -> Result<Vec<Table>, error::Error> {
-    let mut tables = Vec::new();
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let file_name = path
-            .file_name()
-            .ok_or::<error::Error>(
-                format!("path terminates in .. : `{:?}`", path.as_os_str()).into(),
-            )?
-            .to_str()
-            .ok_or::<error::Error>("invalid unicode".into())?;
-        let file_ext = path
-            .extension()
-            .ok_or::<error::Error>(
-                format!("can't find extension: `{:?}`", path.as_os_str()).into(),
-            )?
-            .to_str()
-            .ok_or::<error::Error>("invalid unicode".into())?;
-
-        // ban-lists
-        if config::TABLE_XLSX_FILTER.contains(file_name) {
-            continue;
-        }
-
-        if path.is_dir() && !file_name.starts_with('.') && !excluded.0.contains(file_name) {
-            let tx_clone = tx.clone();
-            let excluded_clone = excluded.clone();
-            let handle = std::thread::spawn(move || {
-                let _ = load_tables(path, tx_clone, excluded_clone);
-            });
-            tx.send(handle).unwrap();
-        } else if file_ext == CFG.source_table_suffix && !file_name.starts_with('~') {
-            let idx = file_name
-                .find('.')
-                .ok_or::<error::Error>("can't find `.` in xlsx file name".into())?;
-            let file_name = &file_name[..idx];
-            tables.push(Table::load(&path, file_name.into())?);
-        }
-    }
-    Ok(tables)
-}
-
-fn build(tables: &[Table]) -> Result<(), error::Error> {
     Ok(())
 }
 
@@ -448,7 +277,7 @@ fn build(tables: &[Table]) -> Result<(), error::Error> {
 struct ExcludedFolders<'a>(HashSet<&'a str>);
 
 fn main() {
-    let args = Args::try_parse().unwrap();
+    let args = Args::parse();
     create_dest_dirs(&args);
     unsafe {
         OUTPUT_SCRIPT_CODE_DIR = Box::leak(args.output_script_dir.into_boxed_str());
@@ -457,6 +286,7 @@ fn main() {
         OUTPUT_SERVER_ENUM_CODE_DIR = Box::leak(args.output_server_enum_dir.into_boxed_str());
         SOURCE_XLSXS_DIR = Box::leak(args.src_table_dir.into_boxed_str());
         REF_TEXT_DIR = Box::leak(args.ref_mapping_dir.into_boxed_str());
+        CONFIG_COLLECTION_PATH = Box::leak(args.config_collection_path.into_boxed_str());
     }
 
     match args.command {
@@ -477,31 +307,25 @@ fn main() {
             }
 
             let (tx, rx) = std::sync::mpsc::channel::<JoinHandle<()>>();
-            let mut path = PathBuf::from(unsafe { SOURCE_XLSXS_DIR });
-            path.push(CFG.language_xlsx_name);
-            process_lstring_xlsx(path, tx.clone(), args.output_lang_dir);
-
-            // process config collection
-            process_config_collection(
-                PathBuf::from(args.config_collection_path),
-                tx.clone(),
-                unsafe { SOURCE_XLSXS_DIR },
-                excluded.clone(),
-            );
-
+            let tables = Arc::new(util::AtomicLinkedList::new());
             // load regular tables
-            match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx.clone(), excluded) {
-                Ok(tables) => {}
+            match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx, excluded, tables.clone()) {
+                Ok(_) => {
+                    while let Ok(handle) = rx.recv() {
+                        let _ = handle.join();
+                    }
+                    match build(tables) {
+                        Err(e) => eprintln!(
+                            "{}",
+                            Red.bold().paint(format!("tables build failed: {}", e))
+                        ),
+                        _ => {}
+                    }
+                }
                 Err(e) => {
-                    eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                    eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
                     exit(-1);
                 }
-            }
-
-            // !! drop the raw tx
-            drop(tx);
-            while let Ok(handle) = rx.recv() {
-                let _ = handle.join();
             }
 
             println!("[End]");
@@ -547,8 +371,7 @@ fn test() {
 fn generate() {
     let path = "D:\\taiwu\\config\\GlobalConfig.xlsx";
     let table = Table::load(path, "GlobalConfig").unwrap();
-    let mut dest = std::fs::File::options().write(true).truncate(true).open("output.cs").unwrap();
-    match table.build(&mut dest, false) {
+    match table.build() {
         Ok(_) => {}
         Err(e) => println!("{}", e),
     }

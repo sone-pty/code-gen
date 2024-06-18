@@ -80,6 +80,7 @@ pub static mut OUTPUT_SERVER_SCRIPT_CODE_DIR: &'static str = "ServerExportScript
 pub static mut OUTPUT_SERVER_ENUM_CODE_DIR: &'static str = "ServerConfigExportEnum/";
 pub static mut SOURCE_XLSXS_DIR: &'static str = "D:/config";
 pub static mut REF_TEXT_DIR: &'static str = "ConfigRefNameMapping/";
+pub static mut CONFIG_COLLECTION_PATH: &'static str = "";
 pub static mut LANG_OUTPUT_DIR: &'static str = "Data/";
 pub static TABLE_XLSX_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     let mut ret = HashSet::<&'static str>::default();

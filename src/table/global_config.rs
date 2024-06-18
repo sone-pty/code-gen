@@ -1,5 +1,9 @@
 use super::{RowData, Sheet, TableCore};
-use crate::{config::CFG, error::Error, util};
+use crate::{
+    config::{CFG, OUTPUT_SCRIPT_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR},
+    error::Error,
+    util,
+};
 use xlsx_read::excel_table::ExcelTable;
 
 pub struct GlobalConfig {
@@ -7,16 +11,8 @@ pub struct GlobalConfig {
     main: Sheet,
 }
 
-impl TableCore for GlobalConfig {
-    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn build(&self, file: &mut dyn std::io::Write, _: bool) -> Result<(), Error> {
+impl GlobalConfig {
+    fn inner_build(&self, file: &mut dyn std::io::Write) -> Result<(), Error> {
         writeln!(file, "{}", CFG.file_banner)?;
         writeln!(file, "using Config;")?;
         writeln!(file, "using System.Collections.Generic;")?;
@@ -92,6 +88,34 @@ impl TableCore for GlobalConfig {
         }
         writeln!(file, "    }}")?;
         write!(file, "}}")?;
+        Ok(())
+    }
+}
+
+impl TableCore for GlobalConfig {
+    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn build(&self) -> Result<(), Error> {
+        let mut client_stream = std::fs::File::create(format!(
+            "{}/{}.{}",
+            unsafe { OUTPUT_SCRIPT_CODE_DIR },
+            self.name,
+            CFG.dest_code_suffix
+        ))?;
+        let mut server_stream = std::fs::File::create(format!(
+            "{}/{}.{}",
+            unsafe { OUTPUT_SERVER_SCRIPT_CODE_DIR },
+            self.name,
+            CFG.dest_code_suffix
+        ))?;
+        self.inner_build(&mut client_stream)?;
+        self.inner_build(&mut server_stream)?;
         Ok(())
     }
 
