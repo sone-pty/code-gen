@@ -1,4 +1,11 @@
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::{
+    path::Path,
+    sync::atomic::{AtomicPtr, Ordering},
+};
+
+use xlsx_read::excel_file::ExcelFile;
+
+use crate::{error::Error, table::TableEntity};
 
 pub fn conv_col_idx(mut n: usize) -> String {
     let mut result = String::new();
@@ -9,6 +16,30 @@ pub fn conv_col_idx(mut n: usize) -> String {
         n = (n - 1) / 26;
     }
     result.chars().rev().collect()
+}
+
+pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEntity, Error> {
+    let mut excel = ExcelFile::load_from_path(path)?;
+    let sheets = excel.parse_workbook()?;
+    let mut entity = TableEntity::default();
+    entity.name = name.into();
+
+    for (flag, id) in sheets.into_iter() {
+        let table = excel.parse_sheet(id)?;
+        match flag.as_str() {
+            "Template" => {
+                entity.template = Some(table);
+            }
+            "GlobalConfig" => {
+                entity.global = Some(table);
+            }
+            v if v.starts_with("t_") => {
+                entity.enums.push(((&v[2..]).into(), table));
+            }
+            v => {}
+        }
+    }
+    Ok(entity)
 }
 
 struct Node<T> {

@@ -1,71 +1,196 @@
-use crate::{config::CFG, error::Error, lex::states::nodes::value_type, types::Value};
+use crate::{
+    config::{CFG, CONFIG_COLLECTION_PATH},
+    error::Error,
+    lex::states::nodes::value_type,
+    types::Value,
+    THREADS,
+};
+use ansi_term::Colour::Red;
 use global_config::GlobalConfig;
-use std::path::Path;
+use std::io::Write;
 use template::{Enums, Template};
-use xlsx_read::{excel_file::ExcelFile, excel_table::ExcelTable};
+use xlsx_read::excel_table::ExcelTable;
 
 mod global_config;
 mod template;
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub enum TableTy {
+    Invalid,
+    Template,
+    GlobalConfig,
+    Language,
+}
+
+#[derive(Default)]
+pub struct TableEntity {
+    pub template: Option<ExcelTable>,
+    pub global: Option<ExcelTable>,
+    pub enums: Vec<(String, ExcelTable)>,
+    pub name: String,
+}
+
+unsafe impl Send for TableEntity {}
+
+impl TableEntity {
+    pub fn view(&self) -> Result<Table<'_>, Error> {
+        Table::load(self)
+    }
+
+    pub fn ty(&self) -> TableTy {
+        if self.template.is_some() {
+            return TableTy::Template;
+        }
+        if self.global.is_some() {
+            return TableTy::GlobalConfig;
+        }
+        TableTy::Invalid
+    }
+}
+
 pub struct Generator {
-    entities: ExcelTable,
+    pub entities: Vec<TableEntity>,
 }
 
 impl Generator {
-    
+    pub fn build(self) -> Result<(), Error> {
+        // generate ConfigCollection.cs
+        let mut file = std::fs::File::options()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(unsafe { CONFIG_COLLECTION_PATH })?;
+        file.write_fmt(format_args!("{}{}", CFG.file_banner, CFG.line_end_flag))?;
+        file.write(
+            r##"
+using Config.Common;
+using System.Collections.Generic;
+
+namespace Config
+{
+    /// <summary>
+    /// 所有配置数据类的集合
+    /// </summary>
+    public static class ConfigCollection
+    {
+        /// <summary>
+        /// 所有配置数据类的集合
+        /// </summary>
+        public static readonly IConfigData[] Items = new IConfigData[]
+        {"##
+            .as_bytes(),
+        )?;
+
+        // TODO: 临时代码
+        file.write_fmt(format_args!("\n\t\t\tLocalSurnames.Instance,"))?;
+        file.write_fmt(format_args!("\n\t\t\tLocalNames.Instance,"))?;
+        file.write_fmt(format_args!("\n\t\t\tLocalZangNames.Instance,"))?;
+        file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"))?;
+        file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"))?;
+
+        for name in self.entities.iter().map(|v| v.name.as_str()) {
+            file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
+        }
+
+        file.write("\n\t\t".as_bytes())?;
+        file.write(r##"};
+
+        /// <summary>
+        /// 配置数据名称表
+        /// </summary>
+        public static readonly Dictionary<string, IConfigData> NameMap = new Dictionary<string, IConfigData>()
+        {"##.as_bytes())?;
+
+        // TODO: 临时代码
+        file.write_fmt(format_args!(
+            "\n\t\t\t{{\"{}\", {}.Instance}},",
+            "LocalSurnames", "LocalSurnames"
+        ))?;
+        file.write_fmt(format_args!(
+            "\n\t\t\t{{\"{}\", {}.Instance}},",
+            "LocalNames", "LocalNames"
+        ))?;
+        file.write_fmt(format_args!(
+            "\n\t\t\t{{\"{}\", {}.Instance}},",
+            "LocalZangNames", "LocalZangNames"
+        ))?;
+        file.write_fmt(format_args!(
+            "\n\t\t\t{{\"{}\", {}.Instance}},",
+            "LocalTownNames", "LocalTownNames"
+        ))?;
+        file.write_fmt(format_args!(
+            "\n\t\t\t{{\"{}\", {}.Instance}},",
+            "LocalMonasticTitles", "LocalMonasticTitles"
+        ))?;
+
+        for name in self.entities.iter().map(|v| v.name.as_str()) {
+            file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
+        }
+        file.write("\n\t\t".as_bytes())?;
+        file.write(
+            r##"};
+    }
+}"##
+            .as_bytes(),
+        )?;
+        file.flush()?;
+
+        // generate the rest
+        self.entities.into_iter().for_each(|v| {
+            THREADS.spawn(move || match v.view() {
+                Ok(view) => match view.build() {
+                    Err(e) => {
+                        eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                    }
+                    _ => {}
+                },
+                Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
+            });
+        });
+        Ok(())
+    }
 }
 
 #[allow(dead_code)]
-pub trait TableCore {
+pub trait TableCore<'a> {
     fn name(&self) -> &str;
     fn build(&self) -> Result<(), Error>;
-    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error>
-    where
-        Self: Sized;
-    fn as_mut_any(&mut self) -> &mut dyn std::any::Any;
+    fn load<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error> where Self: Sized;
 }
 
-pub struct Table {
-    core: Option<Box<dyn TableCore>>,
+pub struct Table<'a> {
+    core: Option<Box<dyn TableCore<'a> + 'a>>,
 }
 
-unsafe impl Send for Table {}
+unsafe impl Send for Table<'_> {}
 
-impl Table {
-    pub fn name(&self) -> Result<&str, Error> {
-        Ok(self.core.as_ref().ok_or::<Error>("".into())?.name())
-    }
-
-    pub fn load<P: AsRef<Path>>(path: P, name: &str) -> Result<Self, Error> {
-        let mut excel = ExcelFile::load_from_path(path)?;
-        let sheets = excel.parse_workbook()?;
+impl<'a> Table<'a> {
+    pub fn load<'b: 'a>(table: &'b TableEntity) -> Result<Self, Error> {
         let mut core: Option<Box<dyn TableCore>> = None;
-
-        for (flag, id) in sheets.into_iter() {
-            let table = excel.parse_sheet(id)?;
-            match flag.as_str() {
-                "Template" => {
-                    core = Some(Box::new(Template::load(&table, name)?) as _);
-                }
-                "GlobalConfig" => {
-                    core = Some(Box::new(GlobalConfig::load(&table, name)?) as _);
-                }
-                v if v.starts_with("t_") => {
-                    debug_assert_eq!(core.is_some(), true);
-                    let concrete = unsafe { core.as_mut().ok_or::<Error>("".into())?.as_mut_any().downcast_mut_unchecked::<Template>() };
-                    match concrete.enums {
-                        Some(ref mut enums) => {
-                            enums.load_enum(&table, &v[2..])?;
-                        }
-                        None => {
-                            let mut enums = Enums::new();
-                            enums.load_enum(&table, &v[2..])?;
-                            concrete.enums = Some(enums);
-                        }
+        match table.ty() {
+            TableTy::Template => {
+                let mut template = Template::load(
+                    unsafe { table.template.as_ref().unwrap_unchecked() },
+                    &table.name,
+                )?;
+                if !table.enums.is_empty() {
+                    let mut enums = Enums::new();
+                    for (name, sheet) in table.enums.iter() {
+                        enums.load_enum(sheet, name.as_str())?;
                     }
+                    template.enums = Some(enums);
                 }
-                v => {}
+                core = Some(Box::new(template) as _);
             }
+            TableTy::GlobalConfig => {
+                core = Some(Box::new(GlobalConfig::load(
+                    unsafe { table.global.as_ref().unwrap_unchecked() },
+                    &table.name,
+                )?));
+            }
+            TableTy::Language => todo!(),
+            TableTy::Invalid => {}
         }
         Ok(Self { core })
     }
@@ -91,14 +216,14 @@ impl Table {
     }
 }
 
-pub struct Sheet {
+pub struct Sheet<'a> {
     col: usize,
     row: usize,
-    data: Box<[RowData]>,
+    data: Box<[RowData<'a>]>,
 }
 
 #[allow(dead_code)]
-impl Sheet {
+impl Sheet<'_> {
     pub fn ty(&self, col: usize, row: usize) -> Result<Box<value_type>, Error> {
         if col < self.col && row < self.row {
             crate::parser::parse_type(self.data[row - CFG.row_of_start].value(col)?, 0, 0)
@@ -145,7 +270,7 @@ impl Sheet {
 }
 
 pub struct SheetFullIter<'a> {
-    view: &'a [RowData],
+    view: &'a [RowData<'a>],
     c: usize,
     r: usize,
 }
@@ -177,12 +302,12 @@ impl<'a> Iterator for SheetFullIter<'a> {
 }
 
 pub struct SheetIter<'a> {
-    view: &'a [RowData],
+    view: &'a [RowData<'a>],
     r: usize,
 }
 
 impl<'a> Iterator for SheetIter<'a> {
-    type Item = &'a RowData;
+    type Item = &'a RowData<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.r < self.view.len() {
@@ -196,12 +321,12 @@ impl<'a> Iterator for SheetIter<'a> {
 }
 
 #[repr(transparent)]
-pub struct RowData(Box<[String]>);
+pub struct RowData<'a>(Box<[&'a str]>);
 
-impl RowData {
+impl RowData<'_> {
     pub fn value(&self, col: usize) -> Result<&str, Error> {
         if col < self.0.len() {
-            Ok(self.0[col].as_str())
+            Ok(self.0[col])
         } else {
             Err("Exceeded the range of the row data index".into())
         }
@@ -216,7 +341,7 @@ impl RowData {
 }
 
 pub struct RowDataIter<'a> {
-    view: &'a [String],
+    view: &'a [&'a str],
     c: usize,
 }
 

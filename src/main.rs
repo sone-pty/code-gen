@@ -5,7 +5,6 @@
 use std::{
     collections::HashSet,
     fs::{self},
-    io::Write,
     path::Path,
     process::{exit, Command},
     sync::{Arc, LazyLock},
@@ -19,7 +18,7 @@ use config::{
     CFG, CONFIG_COLLECTION_PATH, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SCRIPT_CODE_DIR,
     OUTPUT_SERVER_ENUM_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR, REF_TEXT_DIR, SOURCE_XLSXS_DIR,
 };
-use table::Table;
+use table::{Generator, TableEntity};
 
 mod args;
 mod config;
@@ -124,7 +123,7 @@ fn load_tables<P: AsRef<Path>>(
     dir: P,
     tx: std::sync::mpsc::Sender<JoinHandle<()>>,
     excluded: Arc<ExcludedFolders<'static>>,
-    tables: Arc<util::AtomicLinkedList<Table>>,
+    tables: Arc<util::AtomicLinkedList<TableEntity>>,
 ) -> Result<(), error::Error> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
@@ -163,113 +162,21 @@ fn load_tables<P: AsRef<Path>>(
             let idx = file_name
                 .find('.')
                 .ok_or::<error::Error>("can't find `.` in xlsx file name".into())?;
-            let file_name = &file_name[..idx];
-            tables.push(Table::load(&path, file_name.into())?);
+            tables.push(util::load_execl_table(&path, &file_name[..idx])?);
         }
     }
     Ok(())
 }
 
-fn build(tables: Arc<util::AtomicLinkedList<Table>>) -> Result<(), error::Error> {
+fn build(tables: Arc<util::AtomicLinkedList<TableEntity>>) -> Result<(), error::Error> {
     // SAFETY: no data-race here, read-only
     let tables = unsafe {
         Arc::into_inner(tables)
             .ok_or::<error::Error>("".into())?
             .into_unsafe_vector()
     };
-    // generate ConfigCollection.cs
-    let mut file = std::fs::File::options()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(unsafe { CONFIG_COLLECTION_PATH })?;
-    file.write_fmt(format_args!("{}{}", CFG.file_banner, CFG.line_end_flag))?;
-    file.write(
-        r##"
-using Config.Common;
-using System.Collections.Generic;
-
-namespace Config
-{
-    /// <summary>
-    /// 所有配置数据类的集合
-    /// </summary>
-    public static class ConfigCollection
-    {
-        /// <summary>
-        /// 所有配置数据类的集合
-        /// </summary>
-        public static readonly IConfigData[] Items = new IConfigData[]
-        {"##
-        .as_bytes(),
-    )?;
-
-    // TODO: 临时代码
-    file.write_fmt(format_args!("\n\t\t\tLocalSurnames.Instance,"))?;
-    file.write_fmt(format_args!("\n\t\t\tLocalNames.Instance,"))?;
-    file.write_fmt(format_args!("\n\t\t\tLocalZangNames.Instance,"))?;
-    file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"))?;
-    file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"))?;
-
-    for option_name in tables.iter().map(|v| v.name()) {
-        let name = option_name?;
-        file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
-    }
-
-    file.write("\n\t\t".as_bytes())?;
-    file.write(r##"};
-
-        /// <summary>
-        /// 配置数据名称表
-        /// </summary>
-        public static readonly Dictionary<string, IConfigData> NameMap = new Dictionary<string, IConfigData>()
-        {"##.as_bytes())?;
-
-    // TODO: 临时代码
-    file.write_fmt(format_args!(
-        "\n\t\t\t{{\"{}\", {}.Instance}},",
-        "LocalSurnames", "LocalSurnames"
-    ))?;
-    file.write_fmt(format_args!(
-        "\n\t\t\t{{\"{}\", {}.Instance}},",
-        "LocalNames", "LocalNames"
-    ))?;
-    file.write_fmt(format_args!(
-        "\n\t\t\t{{\"{}\", {}.Instance}},",
-        "LocalZangNames", "LocalZangNames"
-    ))?;
-    file.write_fmt(format_args!(
-        "\n\t\t\t{{\"{}\", {}.Instance}},",
-        "LocalTownNames", "LocalTownNames"
-    ))?;
-    file.write_fmt(format_args!(
-        "\n\t\t\t{{\"{}\", {}.Instance}},",
-        "LocalMonasticTitles", "LocalMonasticTitles"
-    ))?;
-
-    for option_name in tables.iter().map(|v| v.name()) {
-        let name = option_name?;
-        file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
-    }
-    file.write("\n\t\t".as_bytes())?;
-    file.write(
-        r##"};
-    }
-}"##
-        .as_bytes(),
-    )?;
-    file.flush()?;
-
-    // generate the rest
-    tables.into_iter().for_each(|v| {
-        THREADS.spawn(move || match v.build() {
-            Err(e) => {
-                eprintln!("{}", Red.bold().paint(format!("{}", e)));
-            }
-            _ => {}
-        });
-    });
-
+    let genarator = Generator { entities: tables };
+    genarator.build()?;
     Ok(())
 }
 
@@ -370,9 +277,9 @@ fn test() {
 #[test]
 fn generate() {
     let path = "D:\\taiwu\\config\\GlobalConfig.xlsx";
-    let table = Table::load(path, "GlobalConfig").unwrap();
-    match table.build() {
+    let table = util::load_execl_table(path, "GlobalConfig").unwrap();
+    match table.view().unwrap().build() {
         Ok(_) => {}
         Err(e) => println!("{}", e),
-    }
+    };
 }

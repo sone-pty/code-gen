@@ -6,12 +6,12 @@ use crate::{
 };
 use xlsx_read::excel_table::ExcelTable;
 
-pub struct GlobalConfig {
-    name: String,
-    main: Sheet,
+pub struct GlobalConfig<'a> {
+    name: &'a str,
+    main: Sheet<'a>,
 }
 
-impl GlobalConfig {
+impl<'a> GlobalConfig<'a> {
     fn inner_build(&self, file: &mut dyn std::io::Write) -> Result<(), Error> {
         writeln!(file, "{}", CFG.file_banner)?;
         writeln!(file, "using Config;")?;
@@ -92,11 +92,7 @@ impl GlobalConfig {
     }
 }
 
-impl TableCore for GlobalConfig {
-    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
+impl<'a> TableCore<'a> for GlobalConfig<'a> {
     fn name(&self) -> &str {
         &self.name
     }
@@ -119,7 +115,7 @@ impl TableCore for GlobalConfig {
         Ok(())
     }
 
-    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error>
+    fn load<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -129,7 +125,7 @@ impl TableCore for GlobalConfig {
         let data = unsafe {
             let mut raw = Box::<[RowData]>::new_uninit_slice(row);
             for r in 0..row {
-                let mut row_data = Box::<[String]>::new_uninit_slice(col);
+                let mut row_data = Box::<[&str]>::new_uninit_slice(col);
                 for c in 0..col {
                     row_data[c].as_mut_ptr().write(
                         table

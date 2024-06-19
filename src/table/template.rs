@@ -16,14 +16,14 @@ use crate::{
 use super::{RowData, Sheet, Table, TableCore};
 
 pub struct Template<'a> {
-    name: String,
+    name: &'a str,
     pub(crate) enums: Option<Enums<'a>>,
-    main: Sheet,
+    main: Sheet<'a>,
     refs: (HashMap<String, i32>, i32), // (mappings, max_num)
 }
 
-impl Template<'_> {
-    fn load_template(table: &ExcelTable, name: &str) -> Result<Self, Error> {
+impl<'a> Template<'a> {
+    fn load_template<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error> {
         let (mut refs, mut max_ref_num, mut ref_file) = Self::load_refs(name)?;
         let row = Table::get_sheet_height(table)?;
         let col = table.width();
@@ -34,11 +34,11 @@ impl Template<'_> {
         let data = unsafe {
             let mut raw = Box::<[RowData]>::new_uninit_slice(row);
             for r in 0..row {
-                let mut row_data = Box::<[String]>::new_uninit_slice(col);
+                let mut row_data = Box::<[&str]>::new_uninit_slice(col);
                 for c in 0..col {
                     row_data[c]
                         .as_mut_ptr()
-                        .write(table.cell_content(c, r).unwrap_or("").trim().into());
+                        .write(table.cell_content(c, r).unwrap_or("").trim());
                 }
                 raw[r].as_mut_ptr().write(RowData(row_data.assume_init()));
             }
@@ -163,11 +163,7 @@ impl Template<'_> {
     }
 }
 
-impl TableCore for Template<'static> {
-    fn as_mut_any(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
+impl<'a> TableCore<'a> for Template<'a> {
     fn name(&self) -> &str {
         &self.name
     }
@@ -176,7 +172,7 @@ impl TableCore for Template<'static> {
         Ok(())
     }
 
-    fn load(table: &ExcelTable, name: &str) -> Result<Self, Error>
+    fn load<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -185,16 +181,19 @@ impl TableCore for Template<'static> {
 }
 
 pub struct Enums<'a> {
-    sheets: Vec<(String, Sheet)>,
+    sheets: Vec<(&'a str, Sheet<'a>)>,
     mapping: Vec<(&'a str, HashMap<&'a str, &'a str>)>,
 }
 
 impl<'a> Enums<'a> {
     pub fn new() -> Self {
-        Self { sheets: vec![], mapping: vec![] }
+        Self {
+            sheets: vec![],
+            mapping: vec![],
+        }
     }
 
-    pub fn load_enum(&mut self, table: &ExcelTable, name: &str) -> Result<(), Error> {
+    pub fn load_enum<'b: 'a>(&mut self, table: &'b ExcelTable, name: &'b str) -> Result<(), Error> {
         let sheet = Self::inner_load_sheet(table)?;
         self.sheets.push((name.into(), sheet));
         Ok(())
@@ -208,7 +207,7 @@ impl<'a> Enums<'a> {
         let data = unsafe {
             let mut raw = Box::<[RowData]>::new_uninit_slice(row);
             for r in 0..row {
-                let mut row_data = Box::<[String]>::new_uninit_slice(col);
+                let mut row_data = Box::<[&str]>::new_uninit_slice(col);
                 for c in 0..col {
                     row_data[c]
                         .as_mut_ptr()
@@ -219,10 +218,6 @@ impl<'a> Enums<'a> {
             raw.assume_init()
         };
 
-        Ok(Sheet {
-            col,
-            row,
-            data,
-        })
+        Ok(Sheet { col, row, data })
     }
 }
