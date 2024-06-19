@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::File,
     io::{BufReader, Write},
+    sync::Arc,
 };
 
 use ansi_term::Colour::Red;
@@ -13,23 +14,25 @@ use crate::{
     util,
 };
 
-use super::{RowData, Sheet, Table, TableCore};
+use super::{BuildContext, RowData, Sheet, Table, TableCore};
 
 pub struct Template<'a> {
     name: &'a str,
     pub(crate) enums: Option<Enums<'a>>,
     main: Sheet<'a>,
-    refs: (HashMap<String, i32>, i32), // (mappings, max_num)
+    fk_cols: Vec<usize>,
 }
 
 impl<'a> Template<'a> {
-    fn load_template<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error> {
-        let (mut refs, mut max_ref_num, mut ref_file) = Self::load_refs(name)?;
+    fn load_template<'b: 'a>(
+        table: &'b ExcelTable,
+        name: &'b str,
+        ctx: &BuildContext,
+    ) -> Result<Self, Error> {
         let row = Table::get_sheet_height(table)?;
         let col = table.width();
         let mut table_refs_set = HashSet::new();
-        let init = max_ref_num == CFG.ref_start_num - 1;
-
+        
         // build row data
         let data = unsafe {
             let mut raw = Box::<[RowData]>::new_uninit_slice(row);
@@ -44,6 +47,9 @@ impl<'a> Template<'a> {
             }
             raw.assume_init()
         };
+
+        let (mut refs, mut max_ref_num, mut ref_file) = Self::load_refs(name)?;
+        let init = max_ref_num == CFG.ref_start_num - 1;
 
         // extra None ref value
         if init {
@@ -91,9 +97,6 @@ impl<'a> Template<'a> {
             }
         }
 
-        // flush
-        ref_file.flush()?;
-
         // Check if the table contains the data row in ref file
         for (id, _) in refs.iter().filter(|v| v.0 != "None") {
             if !table_refs_set.contains(id.as_str()) {
@@ -106,12 +109,15 @@ impl<'a> Template<'a> {
                 );
             }
         }
+        // flush
+        ref_file.flush()?;
 
+        ctx.refs.insert(name.into(), (refs, max_ref_num));
         Ok(Self {
             main: Sheet { col, row, data },
             enums: None,
-            refs: (refs, max_ref_num),
             name: name.into(),
+            fk_cols: vec![],
         })
     }
 
@@ -161,6 +167,17 @@ impl<'a> Template<'a> {
             Err(e) => Err(e.into()),
         }
     }
+
+    fn load_fk_values<'c, 'b: 'c>(&mut self, ctx: &'b BuildContext) -> Result<FKValue<'c>, Error> {
+        let refs = ctx.refs.get(self.name).ok_or::<Error>("Can't find refdata".into())?;
+        for c in 0..self.main.col {
+            let pattern = self.main.cell(c, CFG.row_of_fk)?;
+            if pattern.starts_with('*') {
+                self.fk_cols.push(c);
+            }
+        }
+        FKValue::load(ctx)
+    }
 }
 
 impl<'a> TableCore<'a> for Template<'a> {
@@ -168,15 +185,20 @@ impl<'a> TableCore<'a> for Template<'a> {
         &self.name
     }
 
-    fn build(&self) -> Result<(), Error> {
+    fn build<'b: 'a>(&mut self, ctx: &'b BuildContext) -> Result<(), Error> {
+        let fks = self.load_fk_values(&ctx)?;
         Ok(())
     }
 
-    fn load<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error>
+    fn load<'b: 'a>(
+        table: &'b ExcelTable,
+        name: &'b str,
+        ctx: Arc<BuildContext>,
+    ) -> Result<Self, Error>
     where
         Self: Sized,
     {
-        Self::load_template(table, name)
+        Self::load_template(table, name, ctx.as_ref())
     }
 }
 
@@ -219,5 +241,16 @@ impl<'a> Enums<'a> {
         };
 
         Ok(Sheet { col, row, data })
+    }
+}
+
+#[derive(Default)]
+struct FKValue<'a> {
+    newvals: HashMap<usize, Vec<&'a str>>,
+}
+
+impl<'a> FKValue<'a> {
+    fn load<'b: 'a>(ctx: &'b BuildContext) -> Result<Self, Error> {
+        Ok(FKValue::default())
     }
 }

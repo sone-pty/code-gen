@@ -1,4 +1,3 @@
-#![feature(lazy_cell)]
 #![feature(new_uninit)]
 #![feature(downcast_unchecked)]
 
@@ -278,7 +277,8 @@ fn test() {
 fn generate() {
     let path = "D:\\taiwu\\config\\GlobalConfig.xlsx";
     let table = util::load_execl_table(path, "GlobalConfig").unwrap();
-    match table.view().unwrap().build() {
+    let ctx = std::sync::Arc::new(table::BuildContext::default());
+    match table.view(ctx.clone()).unwrap().build(ctx.as_ref()) {
         Ok(_) => {}
         Err(e) => println!("{}", e),
     };

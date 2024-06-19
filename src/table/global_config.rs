@@ -1,4 +1,6 @@
-use super::{RowData, Sheet, TableCore};
+use std::sync::Arc;
+
+use super::{BuildContext, RowData, Sheet, TableCore};
 use crate::{
     config::{CFG, OUTPUT_SCRIPT_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR},
     error::Error,
@@ -97,7 +99,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
         &self.name
     }
 
-    fn build(&self) -> Result<(), Error> {
+    fn build<'b: 'a>(&mut self, _: &'b BuildContext) -> Result<(), Error> {
         let mut client_stream = std::fs::File::create(format!(
             "{}/{}.{}",
             unsafe { OUTPUT_SCRIPT_CODE_DIR },
@@ -115,7 +117,11 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
         Ok(())
     }
 
-    fn load<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error>
+    fn load<'b: 'a>(
+        table: &'b ExcelTable,
+        name: &'b str,
+        _: Arc<BuildContext>,
+    ) -> Result<Self, Error>
     where
         Self: Sized,
     {

@@ -6,8 +6,9 @@ use crate::{
     THREADS,
 };
 use ansi_term::Colour::Red;
+use dashmap::DashMap;
 use global_config::GlobalConfig;
-use std::io::Write;
+use std::{collections::HashMap, io::Write, sync::Arc};
 use template::{Enums, Template};
 use xlsx_read::excel_table::ExcelTable;
 
@@ -32,10 +33,11 @@ pub struct TableEntity {
 }
 
 unsafe impl Send for TableEntity {}
+unsafe impl Sync for TableEntity {}
 
 impl TableEntity {
-    pub fn view(&self) -> Result<Table<'_>, Error> {
-        Table::load(self)
+    pub fn view<'a>(&'a self, ctx: Arc<BuildContext>) -> Result<Table<'a>, Error> {
+        Table::load(self, ctx)
     }
 
     pub fn ty(&self) -> TableTy {
@@ -136,27 +138,48 @@ namespace Config
         )?;
         file.flush()?;
 
-        // generate the rest
-        self.entities.into_iter().for_each(|v| {
-            THREADS.spawn(move || match v.view() {
-                Ok(view) => match view.build() {
-                    Err(e) => {
-                        eprintln!("{}", Red.bold().paint(format!("{}", e)));
-                    }
-                    _ => {}
-                },
-                Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
+        // loading tables
+        let ctx = std::sync::Arc::new(BuildContext::default());
+        let mut views = vec![];
+        rayon::join(|| println!("Loading tables..."), || {
+            self.entities.iter().for_each(|v| {
+                let ctx = ctx.clone();
+                THREADS.install(|| views.push(v.view(ctx)));
+            });
+        });
+
+        // generate
+        views.into_iter().for_each(|v| {
+            THREADS.install(|| {
+                match v {
+                    Ok(mut view) => match view.build(ctx.as_ref()) {
+                        Err(e) => {
+                            eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                        }
+                        _ => {}
+                    },
+                    Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
+                }
             });
         });
         Ok(())
     }
 }
 
+#[derive(Default)]
+pub struct BuildContext {
+    refs: DashMap<String, (HashMap<String, i32>, i32)>,
+}
+
 #[allow(dead_code)]
 pub trait TableCore<'a> {
     fn name(&self) -> &str;
-    fn build(&self) -> Result<(), Error>;
-    fn load<'b: 'a>(table: &'b ExcelTable, name: &'b str) -> Result<Self, Error> where Self: Sized;
+    fn build<'b: 'a>(&mut self, ctx: &'b BuildContext) -> Result<(), Error>;
+    fn load<'b: 'a>(
+        table: &'b ExcelTable,
+        name: &'b str,
+        ctx: Arc<BuildContext>,
+    ) -> Result<Self, Error> where Self: Sized;
 }
 
 pub struct Table<'a> {
@@ -166,13 +189,17 @@ pub struct Table<'a> {
 unsafe impl Send for Table<'_> {}
 
 impl<'a> Table<'a> {
-    pub fn load<'b: 'a>(table: &'b TableEntity) -> Result<Self, Error> {
+    pub fn load<'b: 'a>(
+        table: &'b TableEntity,
+        ctx: std::sync::Arc<BuildContext>,
+    ) -> Result<Self, Error> {
         let mut core: Option<Box<dyn TableCore>> = None;
         match table.ty() {
             TableTy::Template => {
                 let mut template = Template::load(
                     unsafe { table.template.as_ref().unwrap_unchecked() },
                     &table.name,
+                    ctx.clone(),
                 )?;
                 if !table.enums.is_empty() {
                     let mut enums = Enums::new();
@@ -187,6 +214,7 @@ impl<'a> Table<'a> {
                 core = Some(Box::new(GlobalConfig::load(
                     unsafe { table.global.as_ref().unwrap_unchecked() },
                     &table.name,
+                    ctx.clone(),
                 )?));
             }
             TableTy::Language => todo!(),
@@ -207,11 +235,11 @@ impl<'a> Table<'a> {
         Err("Lack of `EOF` flag".into())
     }
 
-    pub fn build(&self) -> Result<(), Error> {
-        let Some(ref core) = self.core else {
+    pub fn build<'b: 'a>(&mut self, ctx: &'b BuildContext) -> Result<(), Error> {
+        let Some(core) = self.core.as_mut() else {
             return Err("the core of Table is None".into());
         };
-        core.build()?;
+        core.build(ctx)?;
         Ok(())
     }
 }
