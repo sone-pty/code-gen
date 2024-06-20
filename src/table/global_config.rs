@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::{BuildContext, RowData, Sheet, TableCore};
+use super::{BuildContext, Sheet, TableCore, VectorView};
 use crate::{
     config::{CFG, OUTPUT_SCRIPT_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR},
     error::Error,
@@ -36,7 +36,7 @@ impl<'a> GlobalConfig<'a> {
 
         let mut vals = Vec::with_capacity(self.main.row);
         for (idx, row) in self.main.iter().skip(1).enumerate() {
-            let cols: Vec<&str> = row.iter().collect::<Vec<_>>();
+            let cols: Vec<&str> = row.iter().map(|v| *v).collect::<Vec<_>>();
             unsafe {
                 let ident = cols.get_unchecked(0);
                 let ty = cols.get_unchecked(1);
@@ -129,7 +129,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
         let col = table.width();
 
         let data = unsafe {
-            let mut raw = Box::<[RowData]>::new_uninit_slice(row);
+            let mut raw = Box::<[VectorView<&str>]>::new_uninit_slice(row);
             for r in 0..row {
                 let mut row_data = Box::<[&str]>::new_uninit_slice(col);
                 for c in 0..col {
@@ -149,7 +149,9 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
                             .into(),
                     );
                 }
-                raw[r].as_mut_ptr().write(RowData(row_data.assume_init()));
+                raw[r]
+                    .as_mut_ptr()
+                    .write(VectorView(row_data.assume_init()));
             }
             raw.assume_init()
         };

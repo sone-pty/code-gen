@@ -141,25 +141,26 @@ namespace Config
         // loading tables
         let ctx = std::sync::Arc::new(BuildContext::default());
         let mut views = vec![];
-        rayon::join(|| println!("Loading tables..."), || {
-            self.entities.iter().for_each(|v| {
-                let ctx = ctx.clone();
-                THREADS.install(|| views.push(v.view(ctx)));
-            });
-        });
+        rayon::join(
+            || println!("Loading tables..."),
+            || {
+                self.entities.iter().for_each(|v| {
+                    let ctx = ctx.clone();
+                    THREADS.install(|| views.push(v.view(ctx)));
+                });
+            },
+        );
 
         // generate
         views.into_iter().for_each(|v| {
-            THREADS.install(|| {
-                match v {
-                    Ok(mut view) => match view.build(ctx.as_ref()) {
-                        Err(e) => {
-                            eprintln!("{}", Red.bold().paint(format!("{}", e)));
-                        }
-                        _ => {}
-                    },
-                    Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
-                }
+            THREADS.install(|| match v {
+                Ok(mut view) => match view.build(ctx.as_ref()) {
+                    Err(e) => {
+                        eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                    }
+                    _ => {}
+                },
+                Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
             });
         });
         Ok(())
@@ -179,7 +180,9 @@ pub trait TableCore<'a> {
         table: &'b ExcelTable,
         name: &'b str,
         ctx: Arc<BuildContext>,
-    ) -> Result<Self, Error> where Self: Sized;
+    ) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
 pub struct Table<'a> {
@@ -247,7 +250,7 @@ impl<'a> Table<'a> {
 pub struct Sheet<'a> {
     col: usize,
     row: usize,
-    data: Box<[RowData<'a>]>,
+    data: Box<[VectorView<&'a str>]>,
 }
 
 #[allow(dead_code)]
@@ -290,7 +293,7 @@ impl Sheet<'_> {
 
     pub fn cell(&self, col: usize, row: usize) -> Result<&str, Error> {
         if col < self.col && row < self.row {
-            self.data[row].value(col)
+            Ok(*self.data[row].value(col)?)
         } else {
             Err("Index was out of range".into())
         }
@@ -298,7 +301,7 @@ impl Sheet<'_> {
 }
 
 pub struct SheetFullIter<'a> {
-    view: &'a [RowData<'a>],
+    view: &'a [VectorView<&'a str>],
     c: usize,
     r: usize,
 }
@@ -330,12 +333,12 @@ impl<'a> Iterator for SheetFullIter<'a> {
 }
 
 pub struct SheetIter<'a> {
-    view: &'a [RowData<'a>],
+    view: &'a [VectorView<&'a str>],
     r: usize,
 }
 
 impl<'a> Iterator for SheetIter<'a> {
-    type Item = &'a RowData<'a>;
+    type Item = &'a VectorView<&'a str>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.r < self.view.len() {
@@ -348,7 +351,7 @@ impl<'a> Iterator for SheetIter<'a> {
     }
 }
 
-#[repr(transparent)]
+/* #[repr(transparent)]
 pub struct RowData<'a>(Box<[&'a str]>);
 
 impl RowData<'_> {
@@ -383,6 +386,23 @@ impl<'a> Iterator for RowDataIter<'a> {
             Some(v)
         } else {
             None
+        }
+    }
+} */
+
+#[repr(transparent)]
+pub struct VectorView<T>(Box<[T]>);
+
+impl<T> VectorView<T> {
+    pub fn iter(&self) -> std::slice::Iter<T> {
+        self.0.iter()
+    }
+
+    pub fn value(&self, idx: usize) -> Result<&T, Error> {
+        if idx < self.0.len() {
+            Ok(&self.0[idx])
+        } else {
+            Err("Exceeded the range of the row data index".into())
         }
     }
 }

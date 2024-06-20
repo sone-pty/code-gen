@@ -39,8 +39,6 @@ impl Value for SString {
 
 pub struct LString {
     pub ty: TypeInfo,
-    #[allow(dead_code)]
-    pub raw: String,
     pub idx: i32,
 }
 

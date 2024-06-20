@@ -283,13 +283,16 @@ fn get_non_neg_integer_value<T: FromStr>(val: &Box<integer_literal>) -> Result<T
 }
 
 fn parse_lstring_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
-    let values::p3(_, str, _, idx, _) = vals.as_ref() else {
+    let values::p0(literal_vals) = vals.as_ref() else {
         return Err("".into());
     };
-    let idx = get_integer_value(idx)?;
+    let literal_vals::p1(integer) = literal_vals.as_ref() else {
+        return Err("LString type need integer value".into());
+    };
+
+    let idx = get_integer_value(integer)?;
     Ok(Box::new(LString {
         ty,
-        raw: str.as_ref().0.content.into(),
         idx,
     }) as _)
 }
@@ -626,10 +629,6 @@ fn get_raw_value(vals: &Box<values>) -> Result<String, error::Error> {
             }
         },
         values::p2(v) => Ok(v.as_ref().0.content.into()),
-        values::p3(_, str, _, num, _) => {
-            let val = get_integer_value::<i32>(num)?;
-            Ok(format!("({}, {})", str.as_ref().0.content, val))
-        }
     }
 }
 

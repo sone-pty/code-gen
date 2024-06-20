@@ -53,7 +53,6 @@ array_elements
     : literal_vals<>
     | array_vals<>
     | @ident
-    | '(' @string ',' integer_literal<> ')'
     ;
 
 float_type
