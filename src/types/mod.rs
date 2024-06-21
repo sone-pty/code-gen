@@ -50,6 +50,15 @@ impl TypeInfo {
             _ => false,
         }
     }
+
+    pub fn is_lstring_or_lstringarr(&self) -> bool {
+        match self {
+            TypeInfo::LString => true,
+            TypeInfo::Array(e) if e.as_ref() == &TypeInfo::LString => true,
+            TypeInfo::FixedArray(e, _) if e.as_ref() == &TypeInfo::LString => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for TypeInfo {

@@ -92,3 +92,16 @@ pub static TABLE_XLSX_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(||
     ret.insert("CustomExportConfig");
     ret
 });
+pub static ENUM_FLAGS_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    let mut ret = HashSet::<&'static str>::default();
+    ret.insert("Inherit");
+    ret.insert("Archive, Inherit");
+    ret.insert("Archive, Readonly");
+    ret.insert("Readonly, Inherit");
+    ret.insert("Archive, Readonly, Inherit");
+    ret.insert("Archive");
+    ret.insert("Readonly");
+    ret.insert("0");
+    ret.insert("1");
+    ret
+});

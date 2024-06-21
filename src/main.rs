@@ -1,5 +1,6 @@
 #![feature(new_uninit)]
 #![feature(downcast_unchecked)]
+#![feature(cell_update)]
 
 use std::{
     collections::HashSet,
@@ -261,8 +262,8 @@ fn test() {
     let mut display = String::new();
     let p = parser::parse_assign(
         r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {-1,-2}, 100} "#,
-        0,
-        0,
+        None,
+        None,
     )
     .unwrap();
     if p.check() {

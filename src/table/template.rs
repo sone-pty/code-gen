@@ -10,8 +10,9 @@ use ansi_term::Colour::Red;
 use xlsx_read::excel_table::ExcelTable;
 
 use crate::{
-    config::{CFG, REF_TEXT_DIR},
+    config::{CFG, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, REF_TEXT_DIR},
     error::Error,
+    types::{TypeInfo, Value},
     util,
 };
 
@@ -171,7 +172,7 @@ impl<'a> Template<'a> {
         }
     }
 
-    fn load_fk_values<'c, 'b: 'c>(&mut self, ctx: &'b BuildContext) -> Result<FKValue<'c>, Error> {
+    fn build_fk_values<'c, 'b: 'c>(&mut self, ctx: &'b BuildContext) -> Result<FKValue<'c>, Error> {
         for c in 0..self.main.col {
             let pattern = self.main.cell(c, CFG.row_of_fk)?;
             if pattern.starts_with('*') {
@@ -179,6 +180,128 @@ impl<'a> Template<'a> {
             }
         }
         FKValue::load(ctx, self.fk_cols.as_slice(), self.main.data.as_ref())
+    }
+
+    fn build_lstring_values(
+        &self,
+    ) -> Result<(HashMap<String, i32>, HashMap<(usize, usize), Vec<i32>>), Error> {
+        let mut seed = 0i32;
+        let mut ls_map = HashMap::new();
+        let mut emptys = HashMap::new();
+        let mut path = std::path::Path::new(unsafe { LANG_OUTPUT_DIR }).to_path_buf();
+        path.push(format!("{}_language", self.name));
+        path.set_extension("txt");
+        let mut file = File::create(path.as_path())?;
+
+        for c in (0..self.main.col).filter(|v| {
+            self.main
+                .cell(*v, CFG.row_of_type)
+                .is_ok_and(|v| v.contains("Lstring") || v.contains("LString"))
+        }) {
+            let default = self.main.cell(c, CFG.row_of_default)?;
+            let ty = self.main.cell(c, CFG.row_of_type)?;
+
+            for r in CFG.row_of_start..self.main.row {
+                let val = {
+                    let v = self.main.cell(c, r)?;
+                    if v.is_empty() {
+                        default
+                    } else {
+                        v
+                    }
+                };
+                let pos = (c, r);
+                let trivial = { ty == "LString" || ty == "Lstring" };
+
+                if !trivial {
+                    let fval = val.chars().filter(|c| *c != ' ').collect::<String>();
+
+                    if fval.is_empty() || val == "{}" {
+                        return Ok((ls_map, emptys));
+                    }
+
+                    if !fval.starts_with('{') || !fval.ends_with('}') {
+                        return Err("Invalid format".into());
+                    }
+
+                    let val = &val[1..val.len() - 1];
+                    let raw_elements: Vec<&str> = val.split(',').collect();
+
+                    for v in raw_elements {
+                        if v.is_empty() {
+                            match emptys.entry(pos) {
+                                std::collections::hash_map::Entry::Occupied(mut e) => {
+                                    e.get_mut().push(seed);
+                                }
+                                std::collections::hash_map::Entry::Vacant(e) => {
+                                    let mut data = Vec::new();
+                                    data.push(seed);
+                                    e.insert(data);
+                                }
+                            }
+                            seed += 1;
+                            writeln!(file, "")?;
+                        } else {
+                            match ls_map.entry(v.into()) {
+                                std::collections::hash_map::Entry::Vacant(e) => {
+                                    writeln!(file, "{}", v)?;
+                                    e.insert(seed);
+                                    seed += 1;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                } else {
+                    if val.is_empty() {
+                        match emptys.entry(pos) {
+                            std::collections::hash_map::Entry::Occupied(mut e) => {
+                                e.get_mut().push(seed);
+                            }
+                            std::collections::hash_map::Entry::Vacant(e) => {
+                                let mut data = Vec::new();
+                                data.push(seed);
+                                e.insert(data);
+                            }
+                        }
+                        seed += 1;
+                        writeln!(file, "")?;
+                    } else {
+                        match ls_map.entry(val.into()) {
+                            std::collections::hash_map::Entry::Vacant(e) => {
+                                e.insert(seed);
+                                seed += 1;
+                                writeln!(file, "{}", val)?;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
+        // extra language entrys
+        /* self.extra_sheets.borrow().get(base_name).map(|datas| {
+            let langfile = &mut lang_file;
+            let _ = writeln!(
+                langfile,
+                ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+            );
+            for v in datas {
+                let _ = writeln!(langfile, "{}={}", v.0, v.1);
+            }
+        }); */
+
+        file.flush()?;
+        Ok((ls_map, emptys))
+    }
+
+    fn inner_build_client(&self, ctx: &InnerBuildContext<'_>) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn inner_build_server(&self, ctx: &InnerBuildContext<'_>) -> Result<(), Error> {
+        Ok(())
     }
 }
 
@@ -189,8 +312,123 @@ impl<'a> TableCore<'a> for Template<'a> {
 
     fn build<'b: 'a>(&mut self, ctx: &'b BuildContext) -> Result<(), Error> {
         // transfer fk values
-        let fks = self.load_fk_values(&ctx)?;
+        let fks = self.build_fk_values(&ctx)?;
         // transfer lstrings
+        let (ls_map, emptys) = self.build_lstring_values()?;
+        let mut defkey = CFG.cell_of_defkey.0;
+        let mut skip_cols = Vec::new();
+        let mut required = Vec::new();
+        let mut nodefs = HashSet::new();
+        let mut defaults = HashMap::new();
+
+        // collect skip_cols and required fields and defkeys and enum flags
+        for c in 0..self.main.col {
+            let ident = self.main.cell(c, CFG.row_of_ident)?;
+
+            if ident.starts_with('#') {
+                skip_cols.push(c);
+                if ident.contains("DefKey") {
+                    defkey = c;
+                }
+            } else if ident.is_empty() {
+                skip_cols.push(c);
+            } else {
+                required.push(ident);
+            }
+        }
+
+        // parse values
+        let mut values = Vec::new();
+        for c in (0..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
+            let mut rows = Vec::with_capacity(self.main.row - CFG.row_of_start + 1);
+            let ident = self.main.cell(c, CFG.row_of_ident)?;
+            let ty = self.main.cell(c, CFG.row_of_type)?;
+            let ety = format!("enum {}.{}", self.name, ident);
+            let value_ty = {
+                if ty == "enum" {
+                    crate::parser::parse_type(ety.as_str(), 0, 0)?
+                } else {
+                    crate::parser::parse_type(ty, 0, 0)?
+                }
+            };
+            let enum_flag = self.main.cell(c, CFG.row_of_enum)?;
+            let default = self.main.cell(c, CFG.row_of_default)?;
+            /* let get_value = |r: usize, idx: usize| -> Result<&str, Error> {
+                let val = self.main.cell(c, r)?;
+                let val = if val.is_empty() { default } else { val };
+                if self.fk_cols.contains(&c) {
+                    Ok(fks.newvals.get(&c).ok_or::<Error>("".into())?.value(idx)?)
+                } else if ty == "enum" {
+
+                }
+            }; */
+
+            // defaults
+            if default.is_empty() || default == "None" {
+                nodefs.insert(ident);
+            } else {
+                match defaults.entry(ident) {
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        let val = {
+                            let val = self.main.cell(c, CFG.row_of_default)?;
+                            if self.fk_cols.contains(&c) {
+                                fks.newvals.get(&c).ok_or::<Error>("".into())?.value(0)?
+                            } else if val.is_empty() {
+                                default
+                            } else {
+                                val
+                            }
+                        };
+                        let tyinfo = crate::parser::get_value_type(&value_ty)?;
+
+                        if tyinfo.is_lstring_or_lstringarr() {
+                            e.insert((tyinfo, None));
+                        } else {
+                            let value =
+                                crate::parser::parse_assign_with_type(&value_ty, val, None, None)?;
+                            e.insert((tyinfo, Some(value)));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            // data rows
+            for r in CFG.row_of_start..self.main.row {
+                let pos = (c, r);
+                let val = {
+                    let val = self.main.cell(c, r)?;
+                    if self.fk_cols.contains(&c) {
+                        fks.newvals
+                            .get(&c)
+                            .ok_or::<Error>("".into())?
+                            .value(r - CFG.row_of_start + 1)?
+                    } else if val.is_empty() {
+                        default
+                    } else {
+                        val
+                    }
+                };
+                let value = crate::parser::parse_assign_with_type(
+                    &value_ty,
+                    val,
+                    Some(&ls_map),
+                    emptys.get(&pos),
+                )?;
+                rows.push(value);
+            }
+            values.push(rows);
+        }
+
+        // build
+        let inner_ctx = InnerBuildContext {
+            skip_cols,
+            values,
+            nodefs,
+            defaults,
+        };
+        self.inner_build_client(&inner_ctx)?;
+        self.inner_build_server(&inner_ctx)?;
         Ok(())
     }
 
@@ -206,26 +444,89 @@ impl<'a> TableCore<'a> for Template<'a> {
     }
 }
 
+struct InnerBuildContext<'a> {
+    skip_cols: Vec<usize>,
+    values: Vec<Vec<Box<dyn Value>>>,
+    nodefs: HashSet<&'a str>,
+    defaults: HashMap<&'a str, (TypeInfo, Option<Box<dyn Value>>)>,
+}
+
 pub struct Enums<'a> {
-    sheets: Vec<(&'a str, Sheet<'a>)>,
-    mapping: Vec<(&'a str, HashMap<&'a str, &'a str>)>,
+    base: &'a str,
+    mapping: Vec<(&'a str, HashMap<*const u8, *const u8>)>,
 }
 
 impl<'a> Enums<'a> {
-    pub fn new() -> Self {
+    pub fn new<'b: 'a>(base: &'b str) -> Self {
         Self {
-            sheets: vec![],
+            base,
             mapping: vec![],
         }
     }
 
     pub fn load_enum<'b: 'a>(&mut self, table: &'b ExcelTable, name: &'b str) -> Result<(), Error> {
         let sheet = Self::inner_load_sheet(table)?;
-        self.sheets.push((name.into(), sheet));
+        self.save_to(
+            &mut File::create(format!(
+                "{}/E{}{}.cs",
+                unsafe { OUTPUT_ENUM_CODE_DIR },
+                self.base,
+                name,
+            ))?,
+            &sheet,
+            name,
+        )?;
         Ok(())
     }
 
-    fn inner_load_sheet(table: &ExcelTable) -> Result<Sheet, Error> {
+    fn save_to<W: std::io::Write + ?Sized>(
+        &mut self,
+        file: &mut W,
+        sheet: &Sheet<'a>,
+        name: &'a str,
+    ) -> Result<(), Error> {
+        file.write("#pragma warning disable 1591".as_bytes())?;
+        file.write(CFG.line_end_flag.as_bytes())?;
+        file.write(CFG.line_end_flag.as_bytes())?;
+        file.write("/// <summary>".as_bytes())?;
+        file.write(CFG.line_end_flag.as_bytes())?;
+        file.write_fmt(format_args!(
+            "/// {} -> {}{}",
+            self.base, name, CFG.line_end_flag,
+        ))?;
+        file.write("/// </summary>".as_bytes())?;
+        file.write(CFG.line_end_flag.as_bytes())?;
+        file.write_fmt(format_args!(
+            "public enum E{}{}{}",
+            self.base, name, CFG.line_end_flag,
+        ))?;
+        file.write("{".as_bytes())?;
+        file.write(CFG.line_end_flag.as_bytes())?;
+
+        let mut esmap = HashMap::new();
+        for r in 0..sheet.row {
+            let ident = sheet.cell(CFG.col_of_enum_ident, r)?;
+            let val = sheet.cell(CFG.col_of_enum_val, r)?;
+            let desc = sheet.cell(CFG.col_of_enum_desc, r)?;
+
+            file.write_fmt(format_args!("{}/// <summary>{}", '\t', CFG.line_end_flag))?;
+            file.write_fmt(format_args!("{}/// {}{}", '\t', desc, CFG.line_end_flag))?;
+            file.write_fmt(format_args!("{}/// </summary>{}", '\t', CFG.line_end_flag))?;
+            file.write_fmt(format_args!(
+                "{}{} = {},{}",
+                '\t', ident, val, CFG.line_end_flag
+            ))?;
+            esmap.insert(desc.as_ptr(), ident.as_ptr());
+        }
+
+        file.write_fmt(format_args!("{}Count{}", '\t', CFG.line_end_flag))?;
+        file.write("}".as_bytes())?;
+        file.flush()?;
+        self.mapping.push((name, esmap));
+        Ok(())
+    }
+
+    pub fn inner_load_sheet<'b: 'a>(table: &'b ExcelTable) -> Result<Sheet<'b>, Error> {
         let row = table.height();
         let col = table.width();
 
@@ -264,21 +565,34 @@ impl<'a> FKValue<'a> {
     ) -> Result<Self, Error> {
         let mut ret = FKValue::default();
         for c in cols {
-            let mut raw = Box::<[String]>::new_uninit_slice(data.len() - CFG.row_of_start);
+            let mut raw = Box::<[String]>::new_uninit_slice(data.len() - CFG.row_of_start + 1);
             let pattern = data[CFG.row_of_fk].value(*c)?;
             let default = data[CFG.row_of_default].value(*c)?;
+
+            unsafe {
+                raw[0]
+                    .as_mut_ptr()
+                    .write(Self::load_0(*&default, *&pattern, ctx)?);
+            }
+
             for r in CFG.row_of_start..data.len() {
                 let val = {
-                    if pattern.is_empty() {
+                    let val = data[r].value(*c)?;
+                    if val.is_empty() {
                         *default
                     } else {
-                        *pattern
+                        *val
                     }
                 };
 
-                unsafe { raw[r - CFG.row_of_start].as_mut_ptr().write(Self::load_0(val, *&pattern, ctx)?) };
+                unsafe {
+                    raw[r - CFG.row_of_start + 1]
+                        .as_mut_ptr()
+                        .write(Self::load_0(val, *&pattern, ctx)?)
+                };
             }
-            ret.newvals.insert(*c, VectorView(unsafe { raw.assume_init() }));
+            ret.newvals
+                .insert(*c, VectorView(unsafe { raw.assume_init() }));
         }
         Ok(ret)
     }

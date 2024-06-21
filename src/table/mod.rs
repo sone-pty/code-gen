@@ -29,6 +29,7 @@ pub struct TableEntity {
     pub template: Option<ExcelTable>,
     pub global: Option<ExcelTable>,
     pub enums: Vec<(String, ExcelTable)>,
+    pub extras: Vec<(String, ExcelTable)>,
     pub name: String,
 }
 
@@ -205,7 +206,7 @@ impl<'a> Table<'a> {
                     ctx.clone(),
                 )?;
                 if !table.enums.is_empty() {
-                    let mut enums = Enums::new();
+                    let mut enums = Enums::new(table.name.as_str());
                     for (name, sheet) in table.enums.iter() {
                         enums.load_enum(sheet, name.as_str())?;
                     }
@@ -254,7 +255,7 @@ pub struct Sheet<'a> {
 }
 
 #[allow(dead_code)]
-impl Sheet<'_> {
+impl<'a> Sheet<'a> {
     pub fn ty(&self, col: usize, row: usize) -> Result<Box<value_type>, Error> {
         if col < self.col && row < self.row {
             crate::parser::parse_type(self.data[row - CFG.row_of_start].value(col)?, 0, 0)
@@ -268,9 +269,16 @@ impl Sheet<'_> {
         col: usize,
         row: usize,
         ty: &Box<value_type>,
+        ls_map: Option<&HashMap<String, i32>>,
+        ls_emptys: Option<&Vec<i32>>,
     ) -> Result<Box<dyn Value>, Error> {
         if col < self.col && row < self.row {
-            crate::parser::parse_assign_with_type(ty, self.data[row - CFG.row_of_start].value(col)?)
+            crate::parser::parse_assign_with_type(
+                ty,
+                self.data[row - CFG.row_of_start].value(col)?,
+                ls_map,
+                ls_emptys,
+            )
         } else {
             Err("Index was out of range".into())
         }
@@ -284,8 +292,8 @@ impl Sheet<'_> {
         }
     }
 
-    pub fn iter(&self) -> SheetIter<'_> {
-        SheetIter {
+    pub fn row_iter(&self) -> SheetIterByRow<'_> {
+        SheetIterByRow {
             view: &self.data,
             r: 0,
         }
@@ -332,12 +340,12 @@ impl<'a> Iterator for SheetFullIter<'a> {
     }
 }
 
-pub struct SheetIter<'a> {
+pub struct SheetIterByRow<'a> {
     view: &'a [VectorView<&'a str>],
     r: usize,
 }
 
-impl<'a> Iterator for SheetIter<'a> {
+impl<'a> Iterator for SheetIterByRow<'a> {
     type Item = &'a VectorView<&'a str>;
 
     fn next(&mut self) -> Option<Self::Item> {

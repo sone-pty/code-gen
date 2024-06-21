@@ -4,6 +4,7 @@ use super::{BuildContext, Sheet, TableCore, VectorView};
 use crate::{
     config::{CFG, OUTPUT_SCRIPT_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR},
     error::Error,
+    types::Value,
     util,
 };
 use xlsx_read::excel_table::ExcelTable;
@@ -14,7 +15,11 @@ pub struct GlobalConfig<'a> {
 }
 
 impl<'a> GlobalConfig<'a> {
-    fn inner_build(&self, file: &mut dyn std::io::Write) -> Result<(), Error> {
+    fn inner_build(
+        &self,
+        file: &mut dyn std::io::Write,
+        values: &[Box<dyn Value>],
+    ) -> Result<(), Error> {
         writeln!(file, "{}", CFG.file_banner)?;
         writeln!(file, "using Config;")?;
         writeln!(file, "using System.Collections.Generic;")?;
@@ -35,27 +40,14 @@ impl<'a> GlobalConfig<'a> {
         writeln!(file, "")?;
 
         let mut vals = Vec::with_capacity(self.main.row);
-        for (idx, row) in self.main.iter().skip(1).enumerate() {
+        for (idx, row) in self.main.row_iter().skip(1).enumerate() {
             let cols: Vec<&str> = row.iter().map(|v| *v).collect::<Vec<_>>();
             unsafe {
                 let ident = cols.get_unchecked(0);
                 let ty = cols.get_unchecked(1);
-                let val = cols.get_unchecked(2);
                 let desc = cols.get_unchecked(3);
                 let modify = cols.get_unchecked(4);
-                let value_ty = crate::parser::parse_type(*ty, 0, 0)?;
-                let value = match crate::parser::parse_assign_with_type(&value_ty, val) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        return Err(format!(
-                            "In table {}, the Cell.({}, 3) parse failed: {}",
-                            self.name,
-                            idx + 1,
-                            e
-                        )
-                        .into())
-                    }
-                };
+                let value = values.get_unchecked(idx);
 
                 writeln!(file, "    /// <summary>")?;
                 writeln!(file, "    /// {}", desc)?;
@@ -112,8 +104,31 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
             self.name,
             CFG.dest_code_suffix
         ))?;
-        self.inner_build(&mut client_stream)?;
-        self.inner_build(&mut server_stream)?;
+        let values = {
+            let mut values = Vec::with_capacity(self.main.row - 1);
+            for (idx, row) in self.main.row_iter().skip(1).enumerate() {
+                let ty = row.value(1)?;
+                let val = row.value(2)?;
+                let value_ty = crate::parser::parse_type(*ty, 0, 0)?;
+                let value = match crate::parser::parse_assign_with_type(&value_ty, val, None, None)
+                {
+                    Ok(e) => e,
+                    Err(e) => {
+                        return Err(format!(
+                            "In table {}, the Cell.({}, 3) parse failed: {}",
+                            self.name,
+                            idx + 1,
+                            e
+                        )
+                        .into())
+                    }
+                };
+                values.push(value);
+            }
+            values
+        };
+        self.inner_build(&mut client_stream, values.as_slice())?;
+        self.inner_build(&mut server_stream, values.as_slice())?;
         Ok(())
     }
 
