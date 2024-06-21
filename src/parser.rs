@@ -312,8 +312,8 @@ fn parse_lstring_value(
     vals: &Box<values>,
     ctx: &Context,
 ) -> Result<Box<dyn Value>, error::Error> {
-    let values::p2(ident) = vals.as_ref() else {
-        return Err("".into());
+    let values::p2(raw) = vals.as_ref() else {
+        return Err("expected raw_string for lstring value".into());
     };
     let mapping = ctx
         .ls_map
@@ -324,7 +324,7 @@ fn parse_lstring_value(
         .as_ref()
         .ok_or("Can't find lstring empty vector when parse lstring value")?;
     let idx = {
-        if ident.as_ref().0.content.is_empty() {
+        if raw.as_ref().0.content.is_empty() {
             if ctx.current_idx.get() >= emptys.len() {
                 return Err("Index overflow when find empty lstring value".into());
             }
@@ -333,12 +333,12 @@ fn parse_lstring_value(
             val
         } else {
             **mapping
-                .get(ident.as_ref().0.content)
+                .get(raw.as_ref().0.content)
                 .as_ref()
                 .ok_or::<error::Error>(
                     format!(
                         "Can't find lstring mapping when parse `{}`",
-                        ident.as_ref().0.content
+                        raw.as_ref().0.content
                     )
                     .into(),
                 )?
@@ -408,9 +408,9 @@ fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
                 val: string_vals.as_ref().0.content.into(),
             }) as _)
         }
-        values::p2(ident) => Ok(Box::new(SString {
+        values::p2(raw) => Ok(Box::new(SString {
             ty,
-            val: ident.as_ref().0.content.into(),
+            val: raw.as_ref().0.content.into(),
         }) as _),
         _ => return Err("".into()),
     }
@@ -445,11 +445,11 @@ fn parse_uint_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
 
 fn parse_short_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal_vals".into());
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+        return Err("expected integer_vals when parsing short value".into());
     };
 
     let val = get_integer_value(integer_vals)?;
@@ -462,7 +462,7 @@ fn parse_ushort_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+        return Err("expected integer_vals when parsing ushort value".into());
     };
     let val = get_non_neg_integer_value(integer_vals)?;
     Ok(Box::new(UShort { ty, val }) as _)
@@ -474,7 +474,7 @@ fn parse_byte_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+        return Err("expected integer_vals when parsing byte value".into());
     };
 
     let val = get_non_neg_integer_value(integer_vals)?;

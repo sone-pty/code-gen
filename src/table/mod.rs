@@ -210,6 +210,7 @@ impl<'a> Table<'a> {
                     for (name, sheet) in table.enums.iter() {
                         enums.load_enum(sheet, name.as_str())?;
                     }
+                    enums.establish();
                     template.enums = Some(enums);
                 }
                 core = Some(Box::new(template) as _);

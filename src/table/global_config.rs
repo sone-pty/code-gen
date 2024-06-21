@@ -5,7 +5,7 @@ use crate::{
     config::{CFG, OUTPUT_SCRIPT_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR},
     error::Error,
     types::Value,
-    util,
+    util::{self, conv_col_idx},
 };
 use xlsx_read::excel_table::ExcelTable;
 
@@ -115,9 +115,10 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
                     Ok(e) => e,
                     Err(e) => {
                         return Err(format!(
-                            "In table {}, the Cell.({}, 3) parse failed: {}",
+                            "In table {}, the Cell.({}, {}) parse failed: {}",
                             self.name,
-                            idx + 1,
+                            idx + 2,
+                            conv_col_idx(3),
                             e
                         )
                         .into())

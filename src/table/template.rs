@@ -10,10 +10,12 @@ use ansi_term::Colour::Red;
 use xlsx_read::excel_table::ExcelTable;
 
 use crate::{
-    config::{CFG, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, REF_TEXT_DIR},
+    config::{
+        CFG, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SERVER_ENUM_CODE_DIR, REF_TEXT_DIR,
+    },
     error::Error,
     types::{TypeInfo, Value},
-    util,
+    util::{self, conv_col_idx},
 };
 
 use super::{BuildContext, Sheet, Table, TableCore, VectorView};
@@ -339,7 +341,7 @@ impl<'a> TableCore<'a> for Template<'a> {
 
         // parse values
         let mut values = Vec::new();
-        for c in (0..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
+        for c in (1..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
             let mut rows = Vec::with_capacity(self.main.row - CFG.row_of_start + 1);
             let ident = self.main.cell(c, CFG.row_of_ident)?;
             let ty = self.main.cell(c, CFG.row_of_type)?;
@@ -353,15 +355,30 @@ impl<'a> TableCore<'a> for Template<'a> {
             };
             let enum_flag = self.main.cell(c, CFG.row_of_enum)?;
             let default = self.main.cell(c, CFG.row_of_default)?;
-            /* let get_value = |r: usize, idx: usize| -> Result<&str, Error> {
+
+            let get_value = |r: usize, idx: usize| -> Result<&str, Error> {
                 let val = self.main.cell(c, r)?;
                 let val = if val.is_empty() { default } else { val };
                 if self.fk_cols.contains(&c) {
-                    Ok(fks.newvals.get(&c).ok_or::<Error>("".into())?.value(idx)?)
+                    Ok(fks
+                        .newvals
+                        .get(&c)
+                        .ok_or::<Error>(
+                            format!(
+                                "Can't find fk value when parsing Cell.({}, {}) in the table `{}`",
+                                r + 1,
+                                conv_col_idx(c + 1),
+                                self.name
+                            )
+                            .into(),
+                        )?
+                        .value(idx)?)
                 } else if ty == "enum" {
-
+                    unsafe { self.enums.as_ref().unwrap_unchecked().get_value(ident, val) }
+                } else {
+                    Ok(val)
                 }
-            }; */
+            };
 
             // defaults
             if default.is_empty() || default == "None" {
@@ -369,23 +386,27 @@ impl<'a> TableCore<'a> for Template<'a> {
             } else {
                 match defaults.entry(ident) {
                     std::collections::hash_map::Entry::Vacant(e) => {
-                        let val = {
-                            let val = self.main.cell(c, CFG.row_of_default)?;
-                            if self.fk_cols.contains(&c) {
-                                fks.newvals.get(&c).ok_or::<Error>("".into())?.value(0)?
-                            } else if val.is_empty() {
-                                default
-                            } else {
-                                val
-                            }
-                        };
+                        let val = get_value(CFG.row_of_default, 0)?;
                         let tyinfo = crate::parser::get_value_type(&value_ty)?;
 
                         if tyinfo.is_lstring_or_lstringarr() {
                             e.insert((tyinfo, None));
                         } else {
-                            let value =
-                                crate::parser::parse_assign_with_type(&value_ty, val, None, None)?;
+                            let value = match crate::parser::parse_assign_with_type(
+                                &value_ty, val, None, None,
+                            ) {
+                                Ok(e) => e,
+                                Err(e) => {
+                                    return Err(format!(
+                                        "In table {}, the Cell.({}, {}) parse failed: {}",
+                                        self.name,
+                                        CFG.row_of_default + 1,
+                                        conv_col_idx(c + 1),
+                                        e,
+                                    )
+                                    .into())
+                                }
+                            };
                             e.insert((tyinfo, Some(value)));
                         }
                     }
@@ -396,25 +417,25 @@ impl<'a> TableCore<'a> for Template<'a> {
             // data rows
             for r in CFG.row_of_start..self.main.row {
                 let pos = (c, r);
-                let val = {
-                    let val = self.main.cell(c, r)?;
-                    if self.fk_cols.contains(&c) {
-                        fks.newvals
-                            .get(&c)
-                            .ok_or::<Error>("".into())?
-                            .value(r - CFG.row_of_start + 1)?
-                    } else if val.is_empty() {
-                        default
-                    } else {
-                        val
-                    }
-                };
-                let value = crate::parser::parse_assign_with_type(
+                let val = get_value(r, r - CFG.row_of_start + 1)?;
+                let value = match crate::parser::parse_assign_with_type(
                     &value_ty,
                     val,
                     Some(&ls_map),
                     emptys.get(&pos),
-                )?;
+                ) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        return Err(format!(
+                            "In table {}, the Cell.({}, {}) parse failed: {}",
+                            self.name,
+                            r + 1,
+                            conv_col_idx(c + 1),
+                            e,
+                        )
+                        .into())
+                    }
+                };
                 rows.push(value);
             }
             values.push(rows);
@@ -453,7 +474,7 @@ struct InnerBuildContext<'a> {
 
 pub struct Enums<'a> {
     base: &'a str,
-    mapping: Vec<(&'a str, HashMap<*const u8, *const u8>)>,
+    mapping: Vec<(&'a str, HashMap<(*const u8, usize), (*const u8, usize)>)>,
 }
 
 impl<'a> Enums<'a> {
@@ -461,6 +482,26 @@ impl<'a> Enums<'a> {
         Self {
             base,
             mapping: vec![],
+        }
+    }
+
+    #[inline]
+    pub fn establish(&mut self) {
+        self.mapping.sort_by(|a, b| a.0.cmp(b.0));
+    }
+
+    pub fn get_value(&self, name: &str, key: &str) -> Result<&str, Error> {
+        match self.mapping.binary_search_by(|v| v.0.cmp(name)) {
+            Ok(idx) => {
+                let mapping = unsafe { &self.mapping.get_unchecked(idx).1 };
+                unsafe {
+                    let meta = mapping
+                        .get(&(key.as_ptr(), key.len()))
+                        .ok_or::<Error>("".into())?;
+                    Ok(std::str::from_raw_parts(meta.0, meta.1))
+                }
+            }
+            _ => Err("".into()),
         }
     }
 
@@ -476,6 +517,24 @@ impl<'a> Enums<'a> {
             &sheet,
             name,
         )?;
+        self.save_to(
+            &mut File::create(format!(
+                "{}/E{}{}.cs",
+                unsafe { OUTPUT_SERVER_ENUM_CODE_DIR },
+                self.base,
+                name,
+            ))?,
+            &sheet,
+            name,
+        )?;
+
+        let mut esmap = HashMap::new();
+        for r in 0..sheet.row {
+            let ident = sheet.cell(CFG.col_of_enum_ident, r)?;
+            let desc = sheet.cell(CFG.col_of_enum_desc, r)?;
+            esmap.insert((desc.as_ptr(), desc.len()), (ident.as_ptr(), ident.len()));
+        }
+        self.mapping.push((name, esmap));
         Ok(())
     }
 
@@ -503,7 +562,6 @@ impl<'a> Enums<'a> {
         file.write("{".as_bytes())?;
         file.write(CFG.line_end_flag.as_bytes())?;
 
-        let mut esmap = HashMap::new();
         for r in 0..sheet.row {
             let ident = sheet.cell(CFG.col_of_enum_ident, r)?;
             let val = sheet.cell(CFG.col_of_enum_val, r)?;
@@ -516,13 +574,11 @@ impl<'a> Enums<'a> {
                 "{}{} = {},{}",
                 '\t', ident, val, CFG.line_end_flag
             ))?;
-            esmap.insert(desc.as_ptr(), ident.as_ptr());
         }
 
         file.write_fmt(format_args!("{}Count{}", '\t', CFG.line_end_flag))?;
         file.write("}".as_bytes())?;
         file.flush()?;
-        self.mapping.push((name, esmap));
         Ok(())
     }
 
@@ -566,13 +622,13 @@ impl<'a> FKValue<'a> {
         let mut ret = FKValue::default();
         for c in cols {
             let mut raw = Box::<[String]>::new_uninit_slice(data.len() - CFG.row_of_start + 1);
-            let pattern = data[CFG.row_of_fk].value(*c)?;
+            let pattern = &data[CFG.row_of_fk].value(*c)?[1..];
             let default = data[CFG.row_of_default].value(*c)?;
 
             unsafe {
                 raw[0]
                     .as_mut_ptr()
-                    .write(Self::load_0(*&default, *&pattern, ctx)?);
+                    .write(Self::load_0(*&default, pattern, ctx)?);
             }
 
             for r in CFG.row_of_start..data.len() {
@@ -588,7 +644,7 @@ impl<'a> FKValue<'a> {
                 unsafe {
                     raw[r - CFG.row_of_start + 1]
                         .as_mut_ptr()
-                        .write(Self::load_0(val, *&pattern, ctx)?)
+                        .write(Self::load_0(val, pattern, ctx)?)
                 };
             }
             ret.newvals

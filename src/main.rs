@@ -1,6 +1,7 @@
 #![feature(new_uninit)]
 #![feature(downcast_unchecked)]
 #![feature(cell_update)]
+#![feature(str_from_raw_parts)]
 
 use std::{
     collections::HashSet,
@@ -261,7 +262,7 @@ fn main() {
 fn test() {
     let mut display = String::new();
     let p = parser::parse_assign(
-        r#" Tuple<int[], int[2], int> = {{1,2,3,4,5}, {-1,-2}, 100} "#,
+        " string = r#当前已受<color=#pinkyellow>[层数]</color>层<color=#Jingang>雷泽</color>神力影响…在与白龙、小白龙战斗时，每层<color=#Jingang>雷泽</color>神力将使人物<color=#brightred>受到2至4的随机部位内伤;内伤越多，健康受损越多…</color># ",
         None,
         None,
     )
