@@ -59,6 +59,19 @@ impl TypeInfo {
             _ => false,
         }
     }
+
+    pub fn contains_str_type(&self) -> bool {
+        match self {
+            TypeInfo::String | TypeInfo::LString => true,
+            TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
+                v.as_ref() == &TypeInfo::String || v.as_ref() == &TypeInfo::LString
+            }
+            TypeInfo::Tuple(v) | TypeInfo::ValueTuple(v) => v
+                .iter()
+                .any(|v| v.as_ref() == &TypeInfo::String || v.as_ref() == &TypeInfo::LString),
+            _ => false,
+        }
+    }
 }
 
 impl Display for TypeInfo {

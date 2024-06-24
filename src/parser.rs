@@ -31,6 +31,7 @@ use crate::{
         string::{LString, SString},
         TypeInfo, Value,
     },
+    util,
 };
 
 struct Context<'a> {
@@ -69,18 +70,19 @@ pub fn parse_assign_with_type(
     ls_map: Option<&HashMap<String, i32>>,
     ls_emptys: Option<&Vec<i32>>,
 ) -> Result<Box<dyn Value>, error::Error> {
-    let box_vals = parse_value(vals, 0, 0)?;
     let ctx = Context {
         ls_map,
         ls_emptys,
         current_idx: Cell::new(0),
     };
+    let box_vals = parse_value(vals, 0, 0)?;
     match get_value(ty, &box_vals, &ctx) {
         Ok(e) => Ok(e),
         e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
     }
 }
 
+#[deprecated]
 pub fn parse_assign(
     expr: &str,
     ls_map: Option<&HashMap<String, i32>>,
@@ -312,9 +314,13 @@ fn parse_lstring_value(
     vals: &Box<values>,
     ctx: &Context,
 ) -> Result<Box<dyn Value>, error::Error> {
-    let values::p2(raw) = vals.as_ref() else {
-        return Err("expected raw_string for lstring value".into());
+    let values::p0(literal) = vals.as_ref() else {
+        return Err("expected literal for lstring value".into());
     };
+    let literal_vals::p3(raw) = literal.as_ref() else {
+        return Err("expected string for lstring value".into());
+    };
+
     let mapping = ctx
         .ls_map
         .as_ref()
@@ -323,8 +329,14 @@ fn parse_lstring_value(
         .ls_emptys
         .as_ref()
         .ok_or("Can't find lstring empty vector when parse lstring value")?;
+
+    let raw = raw.as_ref().0.content;
+    if raw.len() < 2 {
+        return Err("raw string val is not long enough".into());
+    }
+    let raw = &raw[1..raw.len() - 1];
     let idx = {
-        if raw.as_ref().0.content.is_empty() {
+        if raw.is_empty() {
             if ctx.current_idx.get() >= emptys.len() {
                 return Err("Index overflow when find empty lstring value".into());
             }
@@ -332,16 +344,9 @@ fn parse_lstring_value(
             ctx.current_idx.update(|v| v + 1);
             val
         } else {
-            **mapping
-                .get(raw.as_ref().0.content)
-                .as_ref()
-                .ok_or::<error::Error>(
-                    format!(
-                        "Can't find lstring mapping when parse `{}`",
-                        raw.as_ref().0.content
-                    )
-                    .into(),
-                )?
+            **mapping.get(raw).as_ref().ok_or::<error::Error>(
+                format!("Can't find lstring mapping when parse `{}`", raw).into(),
+            )?
         }
     };
 
@@ -403,15 +408,16 @@ fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
             let literal_vals::p3(string_vals) = literal_vals.as_ref() else {
                 return Err("".into());
             };
+            let raw = string_vals.as_ref().0.content;
+            if raw.len() < 2 {
+                return Err("raw string val is not long enough".into());
+            }
+            let raw = &raw[1..raw.len() - 1];
             Ok(Box::new(SString {
                 ty,
-                val: string_vals.as_ref().0.content.into(),
+                val: raw.into(),
             }) as _)
         }
-        values::p2(raw) => Ok(Box::new(SString {
-            ty,
-            val: raw.as_ref().0.content.into(),
-        }) as _),
         _ => return Err("".into()),
     }
 }
@@ -829,4 +835,37 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
     };
 
     Ok(Box::new(Double { ty, val }) as _)
+}
+
+pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Error> {
+    let mut ret = String::new();
+    ret.push('{');
+
+    match ty {
+        TypeInfo::String | TypeInfo::LString => return Ok(format!("\"{}\"", val)),
+        TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
+            for s in util::split(val) {
+                ret.push_str(transfer_str_value(s, v)?.as_str());
+                ret.push(',');
+            }
+        }
+        TypeInfo::Tuple(v) | TypeInfo::ValueTuple(v) => {
+            let subvals = util::split(val);
+            if subvals.len() != v.len() {
+                return Err("The subvals of Tuple are not match with generic type".into());
+            }
+            unsafe {
+                for i in 0..v.len() {
+                    ret.push_str(
+                        transfer_str_value(subvals.get_unchecked(i), v.get_unchecked(i))?.as_str(),
+                    );
+                    ret.push(',');
+                }
+            }
+        }
+        _ => return Err("type does not contain string".into()),
+    }
+
+    ret.replace_range(ret.len() - 1.., "}");
+    Ok(ret)
 }

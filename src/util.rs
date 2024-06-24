@@ -42,6 +42,50 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
     Ok(entity)
 }
 
+pub fn split(pat: &str) -> Vec<&str> {
+    let pat_trim = pat.trim();
+    let mut ret = Vec::new();
+
+    if pat_trim.starts_with("{") && pat_trim.ends_with("}") {
+        let mut brackets = Stack::new();
+        let mut begin = 1;
+        let mut idx = 0;
+
+        for v in pat_trim.chars() {
+            match v {
+                '{' => {
+                    if idx != 0 {
+                        if brackets.is_empty() {
+                            begin = idx;
+                        }
+                        brackets.push(v);
+                    }
+                }
+                '}' => {
+                    if idx == pat_trim.len() - 1 {
+                        if begin < idx {
+                            ret.push(&pat_trim[begin..idx]);
+                        } else {
+                            ret.push("");
+                        }
+                    } else {
+                        let _ = brackets.pop();
+                    }
+                }
+                ',' => {
+                    if brackets.is_empty() {
+                        ret.push(&pat_trim[begin..idx]);
+                        begin = idx + 1;
+                    }
+                }
+                _ => {}
+            }
+            idx += v.len_utf8();
+        }
+    }
+    ret
+}
+
 struct Node<T> {
     data: T,
     next: AtomicPtr<Node<T>>,

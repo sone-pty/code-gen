@@ -353,6 +353,7 @@ impl<'a> TableCore<'a> for Template<'a> {
                     crate::parser::parse_type(ty, 0, 0)?
                 }
             };
+            let tyinfo = crate::parser::get_value_type(&value_ty)?;
             let enum_flag = self.main.cell(c, CFG.row_of_enum)?;
             let default = self.main.cell(c, CFG.row_of_default)?;
 
@@ -387,27 +388,49 @@ impl<'a> TableCore<'a> for Template<'a> {
                 match defaults.entry(ident) {
                     std::collections::hash_map::Entry::Vacant(e) => {
                         let val = get_value(CFG.row_of_default, 0)?;
-                        let tyinfo = crate::parser::get_value_type(&value_ty)?;
 
                         if tyinfo.is_lstring_or_lstringarr() {
-                            e.insert((tyinfo, None));
+                            e.insert((tyinfo.clone(), None));
                         } else {
-                            let value = match crate::parser::parse_assign_with_type(
-                                &value_ty, val, None, None,
-                            ) {
-                                Ok(e) => e,
-                                Err(e) => {
-                                    return Err(format!(
-                                        "In table {}, the Cell.({}, {}) parse failed: {}",
-                                        self.name,
-                                        CFG.row_of_default + 1,
-                                        conv_col_idx(c + 1),
-                                        e,
-                                    )
-                                    .into())
-                                }
-                            };
-                            e.insert((tyinfo, Some(value)));
+                            if tyinfo.contains_str_type() {
+                                let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
+                                let value = match crate::parser::parse_assign_with_type(
+                                    &value_ty,
+                                    tval.as_str(),
+                                    None,
+                                    None,
+                                ) {
+                                    Ok(e) => e,
+                                    Err(e) => {
+                                        return Err(format!(
+                                            "In table {}, the Cell.({}, {}) parse failed: {}",
+                                            self.name,
+                                            CFG.row_of_default + 1,
+                                            conv_col_idx(c + 1),
+                                            e,
+                                        )
+                                        .into())
+                                    }
+                                };
+                                e.insert((tyinfo.clone(), Some(value)));
+                            } else {
+                                let value = match crate::parser::parse_assign_with_type(
+                                    &value_ty, val, None, None,
+                                ) {
+                                    Ok(e) => e,
+                                    Err(e) => {
+                                        return Err(format!(
+                                            "In table {}, the Cell.({}, {}) parse failed: {}",
+                                            self.name,
+                                            CFG.row_of_default + 1,
+                                            conv_col_idx(c + 1),
+                                            e,
+                                        )
+                                        .into())
+                                    }
+                                };
+                                e.insert((tyinfo.clone(), Some(value)));
+                            }
                         }
                     }
                     _ => {}
@@ -418,25 +441,49 @@ impl<'a> TableCore<'a> for Template<'a> {
             for r in CFG.row_of_start..self.main.row {
                 let pos = (c, r);
                 let val = get_value(r, r - CFG.row_of_start + 1)?;
-                let value = match crate::parser::parse_assign_with_type(
-                    &value_ty,
-                    val,
-                    Some(&ls_map),
-                    emptys.get(&pos),
-                ) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        return Err(format!(
-                            "In table {}, the Cell.({}, {}) parse failed: {}",
-                            self.name,
-                            r + 1,
-                            conv_col_idx(c + 1),
-                            e,
-                        )
-                        .into())
-                    }
-                };
-                rows.push(value);
+
+                if tyinfo.contains_str_type() {
+                    let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
+                    let value = match crate::parser::parse_assign_with_type(
+                        &value_ty,
+                        &tval,
+                        Some(&ls_map),
+                        emptys.get(&pos),
+                    ) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            return Err(format!(
+                                "In table {}, the Cell.({}, {}) parse failed: {}",
+                                self.name,
+                                r + 1,
+                                conv_col_idx(c + 1),
+                                e,
+                            )
+                            .into())
+                        }
+                    };
+                    rows.push(value);
+                } else {
+                    let value = match crate::parser::parse_assign_with_type(
+                        &value_ty,
+                        val,
+                        Some(&ls_map),
+                        emptys.get(&pos),
+                    ) {
+                        Ok(e) => e,
+                        Err(e) => {
+                            return Err(format!(
+                                "In table {}, the Cell.({}, {}) parse failed: {}",
+                                self.name,
+                                r + 1,
+                                conv_col_idx(c + 1),
+                                e,
+                            )
+                            .into())
+                        }
+                    };
+                    rows.push(value);
+                }
             }
             values.push(rows);
         }
@@ -719,9 +766,9 @@ impl<'a> FKValue<'a> {
         value: &str,
         output: &mut String,
     ) -> Result<(), Error> {
-        let patterns = Self::split(pattern);
+        let patterns = util::split(pattern);
         let plen = patterns.len();
-        let vals = Self::split(value);
+        let vals = util::split(value);
         if plen == 0 {
             return Ok(());
         }
@@ -785,9 +832,9 @@ impl<'a> FKValue<'a> {
         value: &str,
         output: &mut String,
     ) -> Result<(), Error> {
-        let patterns = Self::split(pattern);
+        let patterns = util::split(pattern);
         let plen = patterns.len();
-        let vals = Self::split(value);
+        let vals = util::split(value);
         if plen == 0 {
             return Ok(());
         }
@@ -847,49 +894,5 @@ impl<'a> FKValue<'a> {
             }
         }
         Ok(())
-    }
-
-    fn split(pat: &str) -> Vec<&str> {
-        let pat_trim = pat.trim();
-        let mut ret = Vec::new();
-
-        if pat_trim.starts_with("{") && pat_trim.ends_with("}") {
-            let mut brackets = util::Stack::new();
-            let mut begin = 1;
-            let mut idx = 0;
-
-            for v in pat_trim.chars() {
-                match v {
-                    '{' => {
-                        if idx != 0 {
-                            if brackets.is_empty() {
-                                begin = idx;
-                            }
-                            brackets.push(v);
-                        }
-                    }
-                    '}' => {
-                        if idx == pat_trim.len() - 1 {
-                            if begin < idx {
-                                ret.push(&pat_trim[begin..idx]);
-                            } else {
-                                ret.push("");
-                            }
-                        } else {
-                            let _ = brackets.pop();
-                        }
-                    }
-                    ',' => {
-                        if brackets.is_empty() {
-                            ret.push(&pat_trim[begin..idx]);
-                            begin = idx + 1;
-                        }
-                    }
-                    _ => {}
-                }
-                idx += v.len_utf8();
-            }
-        }
-        ret
     }
 }

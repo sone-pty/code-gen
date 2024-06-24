@@ -265,6 +265,7 @@ impl<'a> Sheet<'a> {
         }
     }
 
+    #[deprecated]
     pub fn value(
         &self,
         col: usize,

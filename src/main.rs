@@ -261,14 +261,16 @@ fn main() {
 #[test]
 fn test() {
     let mut display = String::new();
-    let p = parser::parse_assign(
-        " string = r#当前已受<color=#pinkyellow>[层数]</color>层<color=#Jingang>雷泽</color>神力影响…在与白龙、小白龙战斗时，每层<color=#Jingang>雷泽</color>神力将使人物<color=#brightred>受到2至4的随机部位内伤;内伤越多，健康受损越多…</color># ",
+    let ty = parser::parse_type("string", 0, 0).unwrap();
+    let val = parser::parse_assign_with_type(
+        &ty,
+        "当前已受<color=#pinkyellow>[层数]</color>层<color=#Jingang>雷泽</color>神力影响…在",
         None,
         None,
     )
     .unwrap();
-    if p.check() {
-        let _ = p.code_fmt(&mut display);
+    if val.check() {
+        let _ = val.code_fmt(&mut display);
     } else {
         println!("check failed");
     }
@@ -284,4 +286,9 @@ fn generate() {
         Ok(_) => {}
         Err(e) => println!("{}", e),
     };
+}
+
+#[test]
+fn test_split() {
+    println!("{:?}", util::split("{{{1,2,3}, {1,2,3}}, {1,2,3}}"))
 }
