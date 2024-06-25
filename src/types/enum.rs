@@ -3,6 +3,7 @@ use super::{TypeInfo, Value};
 pub struct Enum {
     pub ty: TypeInfo,
     pub ident: String,
+    pub is_null: bool,
 }
 
 impl Value for Enum {
@@ -12,8 +13,12 @@ impl Value for Enum {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        self.ty_fmt(stream)?;
-        stream.write_fmt(format_args!(".{}", self.ident))?;
+        if self.is_null {
+            stream.write_str("null")?;
+        } else {
+            self.ty_fmt(stream)?;
+            stream.write_fmt(format_args!(".{}", self.ident))?;
+        }
         Ok(())
     }
 
@@ -34,8 +39,12 @@ impl Value for Enum {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        self.ty(stream)?;
-        stream.write_fmt(format_args!(".{}", self.ident))?;
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+        } else {
+            self.ty(stream)?;
+            stream.write_fmt(format_args!(".{}", self.ident))?;
+        }
         Ok(())
     }
 }

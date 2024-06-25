@@ -19,7 +19,7 @@ pub trait Value {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum TypeInfo {
     Int,
     Uint,

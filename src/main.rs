@@ -262,13 +262,9 @@ fn main() {
 fn test() {
     let mut display = String::new();
     let ty = parser::parse_type("string", 0, 0).unwrap();
-    let val = parser::parse_assign_with_type(
-        &ty,
-        "当前已受<color=#pinkyellow>[层数]</color>层<color=#Jingang>雷泽</color>神力影响…在",
-        None,
-        None,
-    )
-    .unwrap();
+    let val =
+        parser::parse_assign_with_type(&ty, "\"六\\.四\"", None, None)
+            .unwrap();
     if val.check() {
         let _ = val.code_fmt(&mut display);
     } else {
@@ -290,5 +286,17 @@ fn generate() {
 
 #[test]
 fn test_split() {
-    println!("{:?}", util::split("{{{1,2,3}, {1,2,3}}, {1,2,3}}"))
+    let val = parser::parse_value("{{-1},{-1},{-1},{-1},{-1},{-1},{-1}}", 0, 0).unwrap();
+    match val.as_ref() {
+        lex::states::nodes::values::p0(_) => {
+            println!("literal");
+        }
+        lex::states::nodes::values::p1(_) => {
+            println!("arr");
+        }
+        lex::states::nodes::values::p2(_) => {
+            println!("ident");
+        }
+        lex::states::nodes::values::p3(_) => todo!(),
+    }
 }

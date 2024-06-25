@@ -6,6 +6,8 @@
 
 bool_literal
     : "true"
+    | "TRUE"
+    | "FALSE"
     | "false"
     ;
 
@@ -31,6 +33,11 @@ float_literal
     | @integer _ '.' _ @integer_with_exponent _ @ident
     ;
 
+null_value
+    : "null"
+    | "NULL"
+    ;
+
 literal_vals
     : bool_literal<>
     | integer_literal<>
@@ -53,6 +60,7 @@ array_elements
     : literal_vals<>
     | array_vals<>
     | @ident
+    | null_value<>
     ;
 
 float_type

@@ -110,21 +110,42 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
                 let ty = row.value(1)?;
                 let val = row.value(2)?;
                 let value_ty = crate::parser::parse_type(*ty, 0, 0)?;
-                let value = match crate::parser::parse_assign_with_type(&value_ty, val, None, None)
-                {
-                    Ok(e) => e,
-                    Err(e) => {
-                        return Err(format!(
-                            "In table {}, the Cell.({}, {}) parse failed: {}",
-                            self.name,
-                            idx + 2,
-                            conv_col_idx(3),
-                            e
-                        )
-                        .into())
-                    }
-                };
-                values.push(value);
+                let tyinfo = crate::parser::get_value_type(&value_ty)?;
+
+                if tyinfo.contains_str_type() {
+                    let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
+                    let value =
+                        match crate::parser::parse_assign_with_type(&value_ty, &tval, None, None) {
+                            Ok(e) => e,
+                            Err(e) => {
+                                return Err(format!(
+                                    "In table {}, the Cell.({}, {}) parse failed: {}",
+                                    self.name,
+                                    idx + 2,
+                                    conv_col_idx(3),
+                                    e
+                                )
+                                .into())
+                            }
+                        };
+                    values.push(value);
+                } else {
+                    let value =
+                        match crate::parser::parse_assign_with_type(&value_ty, val, None, None) {
+                            Ok(e) => e,
+                            Err(e) => {
+                                return Err(format!(
+                                    "In table {}, the Cell.({}, {}) parse failed: {}",
+                                    self.name,
+                                    idx + 2,
+                                    conv_col_idx(3),
+                                    e
+                                )
+                                .into())
+                            }
+                        };
+                    values.push(value);
+                }
             }
             values
         };

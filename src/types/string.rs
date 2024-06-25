@@ -3,6 +3,7 @@ use super::{TypeInfo, Value};
 pub struct SString {
     pub ty: TypeInfo,
     pub val: String,
+    pub is_null: bool,
 }
 
 impl Value for SString {
@@ -12,9 +13,14 @@ impl Value for SString {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream
-            .write_fmt(format_args!("\"{}\"", self.val))
-            .map_err(|e| e.into())
+        if self.is_null {
+            stream.write_str("null")?;
+            Ok(())
+        } else {
+            stream
+                .write_fmt(format_args!("\"{}\"", self.val))
+                .map_err(|e| e.into())
+        }
     }
 
     fn check(&self) -> bool {
@@ -31,9 +37,14 @@ impl Value for SString {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream
-            .write_fmt(format_args!("\"{}\"", self.val))
-            .map_err(|e| e.into())
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+            Ok(())
+        } else {
+            stream
+                .write_fmt(format_args!("\"{}\"", self.val))
+                .map_err(|e| e.into())
+        }
     }
 }
 

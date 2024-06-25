@@ -3,6 +3,7 @@ use super::{TypeInfo, Value};
 pub struct Custom {
     pub ty: TypeInfo,
     pub args: Vec<String>,
+    pub is_null: bool,
 }
 
 impl Value for Custom {
@@ -12,32 +13,36 @@ impl Value for Custom {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}(", self.ty))?;
+        if self.is_null {
+            stream.write_str("null")?;
+        } else {
+            stream.write_fmt(format_args!("new {}(", self.ty))?;
 
-        if !self.args.is_empty() {
-            for v in (&self.args[0..self.args.len() - 1])
-                .iter()
-                .map(|v| v.as_str().trim())
-            {
+            if !self.args.is_empty() {
+                for v in (&self.args[0..self.args.len() - 1])
+                    .iter()
+                    .map(|v| v.as_str().trim())
+                {
+                    if v == "{}" {
+                        stream.write_str("default, ")?;
+                    } else if v.starts_with("{") {
+                        stream.write_fmt(format_args!("new []{}, ", v))?;
+                    } else {
+                        stream.write_fmt(format_args!("{}, ", v))?;
+                    }
+                }
+
+                let v = self.args.last().unwrap().as_str().trim();
                 if v == "{}" {
-                    stream.write_str("default, ")?;
+                    stream.write_str("default")?;
                 } else if v.starts_with("{") {
-                    stream.write_fmt(format_args!("new []{}, ", v))?;
+                    stream.write_fmt(format_args!("new []{}", v))?;
                 } else {
-                    stream.write_fmt(format_args!("{}, ", v))?;
+                    stream.write_fmt(format_args!("{}", v))?;
                 }
             }
-
-            let v = self.args.last().unwrap().as_str().trim();
-            if v == "{}" {
-                stream.write_str("default")?;
-            } else if v.starts_with("{") {
-                stream.write_fmt(format_args!("new []{}", v))?;
-            } else {
-                stream.write_fmt(format_args!("{}", v))?;
-            }
+            stream.write_char(')')?;
         }
-        stream.write_char(')')?;
         Ok(())
     }
 
@@ -58,32 +63,36 @@ impl Value for Custom {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}(", self.ty))?;
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+        } else {
+            stream.write_fmt(format_args!("new {}(", self.ty))?;
 
-        if !self.args.is_empty() {
-            for v in (&self.args[0..self.args.len() - 1])
-                .iter()
-                .map(|v| v.as_str().trim())
-            {
+            if !self.args.is_empty() {
+                for v in (&self.args[0..self.args.len() - 1])
+                    .iter()
+                    .map(|v| v.as_str().trim())
+                {
+                    if v == "{}" {
+                        stream.write("default, ".as_bytes())?;
+                    } else if v.starts_with("{") {
+                        stream.write_fmt(format_args!("new []{}, ", v))?;
+                    } else {
+                        stream.write_fmt(format_args!("{}, ", v))?;
+                    }
+                }
+
+                let v = self.args.last().unwrap().as_str().trim();
                 if v == "{}" {
-                    stream.write("default, ".as_bytes())?;
+                    stream.write("default".as_bytes())?;
                 } else if v.starts_with("{") {
-                    stream.write_fmt(format_args!("new []{}, ", v))?;
+                    stream.write_fmt(format_args!("new []{}", v))?;
                 } else {
-                    stream.write_fmt(format_args!("{}, ", v))?;
+                    stream.write_fmt(format_args!("{}", v))?;
                 }
             }
-
-            let v = self.args.last().unwrap().as_str().trim();
-            if v == "{}" {
-                stream.write("default".as_bytes())?;
-            } else if v.starts_with("{") {
-                stream.write_fmt(format_args!("new []{}", v))?;
-            } else {
-                stream.write_fmt(format_args!("{}", v))?;
-            }
+            stream.write(")".as_bytes())?;
         }
-        stream.write(")".as_bytes())?;
         Ok(())
     }
 }

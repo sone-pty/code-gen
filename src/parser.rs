@@ -75,6 +75,26 @@ pub fn parse_assign_with_type(
         ls_emptys,
         current_idx: Cell::new(0),
     };
+    let tyinfo = get_value_type(ty)?;
+
+    let vals = if vals.is_empty() {
+        match tyinfo {
+            TypeInfo::Int | TypeInfo::SByte | TypeInfo::Short | TypeInfo::Bool => "-1",
+            TypeInfo::Array(_)
+            | TypeInfo::Enum(_, _)
+            | TypeInfo::List(_)
+            | TypeInfo::FixedArray(_, _)
+            | TypeInfo::Custom(_) => "null",
+            TypeInfo::Double | TypeInfo::Float => "0.0",
+            TypeInfo::Decimal | TypeInfo::UShort | TypeInfo::Uint | TypeInfo::Byte => "0",
+            _ => "",
+        }
+    } else if tyinfo == TypeInfo::String && vals.len() == 2 {
+        "null"
+    } else {
+        vals
+    };
+
     let box_vals = parse_value(vals, 0, 0)?;
     match get_value(ty, &box_vals, &ctx) {
         Ok(e) => Ok(e),
@@ -321,15 +341,6 @@ fn parse_lstring_value(
         return Err("expected string for lstring value".into());
     };
 
-    let mapping = ctx
-        .ls_map
-        .as_ref()
-        .ok_or::<error::Error>("Can't find lstring mapping when parse lstring value".into())?;
-    let emptys = ctx
-        .ls_emptys
-        .as_ref()
-        .ok_or("Can't find lstring empty vector when parse lstring value")?;
-
     let raw = raw.as_ref().0.content;
     if raw.len() < 2 {
         return Err("raw string val is not long enough".into());
@@ -337,6 +348,10 @@ fn parse_lstring_value(
     let raw = &raw[1..raw.len() - 1];
     let idx = {
         if raw.is_empty() {
+            let emptys = ctx
+                .ls_emptys
+                .as_ref()
+                .ok_or("Can't find lstring empty vector when parse lstring value")?;
             if ctx.current_idx.get() >= emptys.len() {
                 return Err("Index overflow when find empty lstring value".into());
             }
@@ -344,6 +359,9 @@ fn parse_lstring_value(
             ctx.current_idx.update(|v| v + 1);
             val
         } else {
+            let mapping = ctx.ls_map.as_ref().ok_or::<error::Error>(
+                "Can't find lstring mapping when parse lstring value".into(),
+            )?;
             **mapping.get(raw).as_ref().ok_or::<error::Error>(
                 format!("Can't find lstring mapping when parse `{}`", raw).into(),
             )?
@@ -369,36 +387,62 @@ fn parse_shortlist_value(
     vals: &Box<values>,
     ctx: &Context,
 ) -> Result<Box<dyn Value>, error::Error> {
+    if let values::p3(_) = vals.as_ref() {
+        return Ok(Box::new(ShortList {
+            ty,
+            vals: Vec::new(),
+            is_null: true,
+        }) as _);
+    }
+
     let values::p1(array_vals) = vals.as_ref() else {
         return Err("expected array_vals for ShortList".into());
     };
-    let real_ty = parse_type("List<Short>", 0, 0)?;
-    let mut vals = Vec::new();
-
-    match array_vals.as_ref() {
-        states::nodes::array_vals::p0(_, _) => {
-            return Ok(Box::new(ShortList {
+    match parse_type("List<short>", 0, 0)?.as_ref() {
+        value_type::p9(list_ty) => {
+            let list_type::p0(_, _, raw, _) = list_ty.as_ref();
+            let mut vals = Vec::new();
+            match array_vals.as_ref() {
+                states::nodes::array_vals::p0(_, _) => {
+                    return Ok(Box::new(ShortList {
+                        ty,
+                        vals: Vec::new(),
+                        is_null: false,
+                    }) as _)
+                }
+                states::nodes::array_vals::p1(_, elements, _) => {
+                    parse_array_elements_value(&raw, elements, &mut vals, ctx)?
+                }
+                states::nodes::array_vals::p2(_, elements, _, _) => {
+                    parse_array_elements_value(&raw, elements, &mut vals, ctx)?
+                }
+            }
+            Ok(Box::new(ShortList {
                 ty,
-                vals: Vec::new(),
+                vals,
+                is_null: false,
             }) as _)
         }
-        states::nodes::array_vals::p1(_, elements, _) => {
-            parse_array_elements_value(&real_ty, elements, &mut vals, ctx)?
-        }
-        states::nodes::array_vals::p2(_, elements, _, _) => {
-            parse_array_elements_value(&real_ty, elements, &mut vals, ctx)?
-        }
+        _ => return Err("".into()),
     }
-    Ok(Box::new(ShortList { ty, vals }) as _)
 }
 
 fn parse_enum_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
+    if let values::p3(_) = vals.as_ref() {
+        return Ok(Box::new(Enum {
+            ty,
+            ident: "".into(),
+            is_null: true,
+        }) as _);
+    }
+
     let values::p2(ident) = vals.as_ref() else {
         return Err("expected enum ident, ident is not exist".into());
     };
     Ok(Box::new(Enum {
         ty,
         ident: ident.as_ref().0.content.into(),
+        is_null: false,
     }))
 }
 
@@ -416,8 +460,14 @@ fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
             Ok(Box::new(SString {
                 ty,
                 val: raw.into(),
+                is_null: false,
             }) as _)
         }
+        values::p3(_) => Ok(Box::new(SString {
+            ty,
+            val: "".into(),
+            is_null: true,
+        }) as _),
         _ => return Err("".into()),
     }
 }
@@ -427,13 +477,20 @@ fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
         return Err("".into());
     };
 
-    let literal_vals::p0(bool_vals) = literal_vals.as_ref() else {
-        return Err("".into());
-    };
-
-    match bool_vals.as_ref() {
-        states::nodes::bool_literal::p0(_) => Ok(Box::new(Bool { ty, val: true }) as _),
-        states::nodes::bool_literal::p1(_) => Ok(Box::new(Bool { ty, val: false }) as _),
+    match literal_vals.as_ref() {
+        literal_vals::p0(v) => match v.as_ref() {
+            states::nodes::bool_literal::p0(_) | states::nodes::bool_literal::p1(_) => Ok(Box::new(Bool { ty, val: true }) as _),
+            states::nodes::bool_literal::p2(_) | states::nodes::bool_literal::p3(_) => Ok(Box::new(Bool { ty, val: false }) as _),
+        },
+        literal_vals::p1(v) => {
+            let val = get_integer_value::<i32>(v)?;
+            if val > 0 {
+                Ok(Box::new(Bool { ty, val: true }) as _)
+            } else {
+                Ok(Box::new(Bool { ty, val: false }) as _)
+            }
+        },
+        _ => return Err("Bool type need integer val or bool val".into()),
     }
 }
 
@@ -506,27 +563,40 @@ fn parse_list_value(
     vals: &Box<values>,
     ctx: &Context,
 ) -> Result<Box<dyn Value>, error::Error> {
+    if let values::p3(_) = vals.as_ref() {
+        return Ok(Box::new(List {
+            ty,
+            vals: Vec::new(),
+            is_null: true,
+        }) as _);
+    }
+
     let list_type::p0(_, _, raw, _) = raw.as_ref();
     let values::p1(array_vals) = vals.as_ref() else {
         return Err("expected array_vals for List".into());
     };
-    let mut vals = Vec::new();
+    let mut rvals = Vec::new();
 
     match array_vals.as_ref() {
         states::nodes::array_vals::p0(_, _) => {
             return Ok(Box::new(List {
                 ty,
                 vals: Vec::new(),
+                is_null: false,
             }) as _)
         }
         states::nodes::array_vals::p1(_, elements, _) => {
-            parse_array_elements_value(raw, elements, &mut vals, ctx)?
+            parse_array_elements_value(raw, elements, &mut rvals, ctx)?
         }
         states::nodes::array_vals::p2(_, elements, _, _) => {
-            parse_array_elements_value(raw, elements, &mut vals, ctx)?
+            parse_array_elements_value(raw, elements, &mut rvals, ctx)?
         }
     }
-    Ok(Box::new(List { ty, vals }) as _)
+    Ok(Box::new(List {
+        ty,
+        vals: rvals,
+        is_null: false,
+    }) as _)
 }
 
 fn parse_array_value(
@@ -536,9 +606,29 @@ fn parse_array_value(
     ctx: &Context,
 ) -> Result<Box<dyn Value>, error::Error> {
     let (raw, nums) = match raw.as_ref() {
-        array_type::p0(raw, _, _) => (raw, None),
-        array_type::p1(raw, _, _, _) => (raw, Some(())),
+        array_type::p0(raw, _, _) => {
+            if let values::p3(_) = vals.as_ref() {
+                return Ok(Box::new(Array {
+                    ty,
+                    vals: Vec::new(),
+                    is_null: true,
+                }) as _);
+            }
+            (raw, None)
+        },
+        // Fixed Array
+        array_type::p1(raw, _, _, _) => {
+            if let values::p3(_) = vals.as_ref() {
+                return Ok(Box::new(FixedArray {
+                    ty,
+                    vals: Vec::new(),
+                    is_null: true,
+                }) as _);
+            }
+            (raw, Some(()))
+        },
     };
+
     let values::p1(array_vals) = vals.as_ref() else {
         return Err("expected array_vals for array".into());
     };
@@ -550,11 +640,13 @@ fn parse_array_value(
                 return Ok(Box::new(Array {
                     ty,
                     vals: Vec::new(),
+                    is_null: false,
                 }) as _);
             } else {
                 return Ok(Box::new(FixedArray {
                     ty,
                     vals: Vec::new(),
+                    is_null: false,
                 }) as _);
             }
         }
@@ -567,9 +659,13 @@ fn parse_array_value(
     }
 
     if nums.is_none() {
-        Ok(Box::new(Array { ty, vals }) as _)
+        Ok(Box::new(Array {
+            ty,
+            vals,
+            is_null: false,
+        }) as _)
     } else {
-        Ok(Box::new(FixedArray { ty, vals }) as _)
+        Ok(Box::new(FixedArray { ty, vals, is_null: false, }) as _)
     }
 }
 
@@ -661,6 +757,14 @@ fn parse_tuple_value_inner(
 }
 
 fn parse_custom_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
+    if let values::p3(_) = vals.as_ref() {
+        return Ok(Box::new(Custom {
+            ty,
+            args: Vec::new(),
+            is_null: true,
+        }) as _);
+    }
+
     let values::p1(array_vals) = vals.as_ref() else {
         return Err("expected array_vals for custom type".into());
     };
@@ -671,6 +775,7 @@ fn parse_custom_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
             return Ok(Box::new(Custom {
                 ty,
                 args: Vec::new(),
+                is_null: false,
             }) as _)
         }
         states::nodes::array_vals::p1(_, elements, _)
@@ -678,7 +783,11 @@ fn parse_custom_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
             parse_custom_value_inner(elements, &mut args)?;
         }
     }
-    Ok(Box::new(Custom { ty, args }) as _)
+    Ok(Box::new(Custom {
+        ty,
+        args,
+        is_null: false,
+    }) as _)
 }
 
 fn get_raw_value(vals: &Box<values>) -> Result<String, error::Error> {
@@ -695,6 +804,7 @@ fn get_raw_value(vals: &Box<values>) -> Result<String, error::Error> {
             }
         },
         values::p2(v) => Ok(v.as_ref().0.content.into()),
+        values::p3(_) => Ok("null".into()),
     }
 }
 
@@ -714,7 +824,9 @@ fn get_raw_literal_value(vals: &Box<literal_vals>) -> Result<String, error::Erro
     match vals.as_ref() {
         literal_vals::p0(v) => match v.as_ref() {
             states::nodes::bool_literal::p0(_) => Ok("true".into()),
-            states::nodes::bool_literal::p1(_) => Ok("false".into()),
+            states::nodes::bool_literal::p1(_) => Ok("true".into()),
+            states::nodes::bool_literal::p2(_) => Ok("false".into()),
+            states::nodes::bool_literal::p3(_) => Ok("false".into()),
         },
         literal_vals::p1(v) => match v.as_ref() {
             states::nodes::integer_literal::p0(_) => todo!(),
@@ -839,17 +951,25 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
 
 pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Error> {
     let mut ret = String::new();
-    ret.push('{');
-
     match ty {
         TypeInfo::String | TypeInfo::LString => return Ok(format!("\"{}\"", val)),
         TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
+            if val == "" {
+                return Ok("".into());
+            }
+
+            ret.push('{');
             for s in util::split(val) {
                 ret.push_str(transfer_str_value(s, v)?.as_str());
                 ret.push(',');
             }
         }
         TypeInfo::Tuple(v) | TypeInfo::ValueTuple(v) => {
+            if val == "" {
+                return Ok("".into());
+            }
+
+            ret.push('{');
             let subvals = util::split(val);
             if subvals.len() != v.len() {
                 return Err("The subvals of Tuple are not match with generic type".into());
@@ -865,7 +985,6 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
         }
         _ => return Err("type does not contain string".into()),
     }
-
     ret.replace_range(ret.len() - 1.., "}");
     Ok(ret)
 }

@@ -3,6 +3,7 @@ use super::{TypeInfo, Value};
 pub struct List {
     pub ty: TypeInfo,
     pub vals: Vec<Box<dyn Value>>,
+    pub is_null: bool,
 }
 
 impl Value for List {
@@ -12,15 +13,19 @@ impl Value for List {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code_fmt(stream)?;
-                stream.write_str(", ")?;
+        if self.is_null {
+            stream.write_str("null")?;
+        } else {
+            stream.write_fmt(format_args!("new {}{{", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code_fmt(stream)?;
+                    stream.write_str(", ")?;
+                }
+                self.vals.last().unwrap().code_fmt(stream)?;
             }
-            self.vals.last().unwrap().code_fmt(stream)?;
+            stream.write_char('}')?;
         }
-        stream.write_char('}')?;
         Ok(())
     }
 
@@ -38,15 +43,19 @@ impl Value for List {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code(stream)?;
-                stream.write(", ".as_bytes())?;
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+        } else {
+            stream.write_fmt(format_args!("new {}{{", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code(stream)?;
+                    stream.write(", ".as_bytes())?;
+                }
+                self.vals.last().unwrap().code(stream)?;
             }
-            self.vals.last().unwrap().code(stream)?;
+            stream.write("}".as_bytes())?;
         }
-        stream.write("}".as_bytes())?;
         Ok(())
     }
 }
@@ -54,6 +63,7 @@ impl Value for List {
 pub struct ShortList {
     pub ty: TypeInfo,
     pub vals: Vec<Box<dyn Value>>,
+    pub is_null: bool,
 }
 
 impl Value for ShortList {
@@ -63,15 +73,19 @@ impl Value for ShortList {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}(", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code_fmt(stream)?;
-                stream.write_str(", ")?;
+        if self.is_null {
+            stream.write_str("null")?;
+        } else {
+            stream.write_fmt(format_args!("new {}(", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code_fmt(stream)?;
+                    stream.write_str(", ")?;
+                }
+                self.vals.last().unwrap().code_fmt(stream)?;
             }
-            self.vals.last().unwrap().code_fmt(stream)?;
+            stream.write_char(')')?;
         }
-        stream.write_char(')')?;
         Ok(())
     }
 
@@ -89,15 +103,19 @@ impl Value for ShortList {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}(", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code(stream)?;
-                stream.write(", ".as_bytes())?;
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+        } else {
+            stream.write_fmt(format_args!("new {}(", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code(stream)?;
+                    stream.write(", ".as_bytes())?;
+                }
+                self.vals.last().unwrap().code(stream)?;
             }
-            self.vals.last().unwrap().code(stream)?;
+            stream.write(")".as_bytes())?;
         }
-        stream.write(")".as_bytes())?;
         Ok(())
     }
 }
@@ -105,6 +123,7 @@ impl Value for ShortList {
 pub struct FixedArray {
     pub ty: TypeInfo,
     pub vals: Vec<Box<dyn Value>>,
+    pub is_null: bool,
 }
 
 impl Value for FixedArray {
@@ -114,6 +133,10 @@ impl Value for FixedArray {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
+        if self.is_null {
+            stream.write_str("null")?;
+        } else {
+
         stream.write_fmt(format_args!("new {}{{", self.ty))?;
         if !self.vals.is_empty() {
             for v in &self.vals[0..self.vals.len() - 1] {
@@ -123,6 +146,7 @@ impl Value for FixedArray {
             self.vals.last().unwrap().code_fmt(stream)?;
         }
         stream.write_char('}')?;
+        }
         Ok(())
     }
 
@@ -148,6 +172,10 @@ impl Value for FixedArray {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+        } else {
+
         stream.write_fmt(format_args!("new {}{{", self.ty))?;
         if !self.vals.is_empty() {
             for v in &self.vals[0..self.vals.len() - 1] {
@@ -157,6 +185,7 @@ impl Value for FixedArray {
             self.vals.last().unwrap().code(stream)?;
         }
         stream.write("}".as_bytes())?;
+        }
         Ok(())
     }
 }
@@ -164,6 +193,7 @@ impl Value for FixedArray {
 pub struct Array {
     pub ty: TypeInfo,
     pub vals: Vec<Box<dyn Value>>,
+    pub is_null: bool,
 }
 
 impl Value for Array {
@@ -173,15 +203,19 @@ impl Value for Array {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code_fmt(stream)?;
-                stream.write_str(", ")?;
+        if self.is_null {
+            stream.write_str("null")?;
+        } else {
+            stream.write_fmt(format_args!("new {}{{", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code_fmt(stream)?;
+                    stream.write_str(", ")?;
+                }
+                self.vals.last().unwrap().code_fmt(stream)?;
             }
-            self.vals.last().unwrap().code_fmt(stream)?;
+            stream.write_char('}')?;
         }
-        stream.write_char('}')?;
         Ok(())
     }
 
@@ -202,15 +236,19 @@ impl Value for Array {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code(stream)?;
-                stream.write(", ".as_bytes())?;
+        if self.is_null {
+            stream.write("null".as_bytes())?;
+        } else {
+            stream.write_fmt(format_args!("new {}{{", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code(stream)?;
+                    stream.write(", ".as_bytes())?;
+                }
+                self.vals.last().unwrap().code(stream)?;
             }
-            self.vals.last().unwrap().code(stream)?;
+            stream.write("}".as_bytes())?;
         }
-        stream.write("}".as_bytes())?;
         Ok(())
     }
 }
