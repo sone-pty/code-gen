@@ -11,7 +11,8 @@ use xlsx_read::excel_table::ExcelTable;
 
 use crate::{
     config::{
-        CFG, ENUM_FLAGS_FILTER, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SERVER_ENUM_CODE_DIR, REF_TEXT_DIR
+        CFG, ENUM_FLAGS_FILTER, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SCRIPT_CODE_DIR,
+        OUTPUT_SERVER_ENUM_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR, REF_TEXT_DIR,
     },
     error::Error,
     types::{TypeInfo, Value},
@@ -19,6 +20,9 @@ use crate::{
 };
 
 use super::{BuildContext, Sheet, Table, TableCore, VectorView};
+
+mod base;
+mod item;
 
 pub struct Template<'a> {
     name: &'a str,
@@ -308,12 +312,51 @@ impl<'a> Template<'a> {
         Ok((ls_map, emptys))
     }
 
-    fn inner_build_client(&self, ctx: &InnerBuildContext<'_>) -> Result<(), Error> {
-        
-        Ok(())
-    }
+    fn inner_build(&self, ctx: &InnerBuildContext<'_>, is_server: bool) -> Result<(), Error> {
+        let mut stream = File::create(format!(
+            "{}/{}.{}",
+            if is_server {
+                unsafe { OUTPUT_SCRIPT_CODE_DIR }
+            } else {
+                unsafe { OUTPUT_SERVER_SCRIPT_CODE_DIR }
+            },
+            self.name,
+            CFG.dest_code_suffix
+        ))?;
+        let end = CFG.line_end_flag;
+        // banner
+        stream.write_fmt(format_args!("{}{}", CFG.file_banner, end))?;
+        // using
+        stream.write("using System;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write("using System.Linq;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write("using System.Collections;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write("using System.Collections.Generic;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write("using Config.Common;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write(end.as_bytes())?;
 
-    fn inner_build_server(&self, ctx: &InnerBuildContext<'_>) -> Result<(), Error> {
+        // #pragma
+        stream.write("#pragma warning disable 1591".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write(end.as_bytes())?;
+
+        // namespace-start
+        stream.write("namespace Config".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write("{".as_bytes())?;
+        stream.write(end.as_bytes())?;
+
+        // item
+        item::generate(self, &mut stream, 1, ctx, is_server)?;
+        stream.write(end.as_bytes())?;
+        base::generate(self, &mut stream, 1, ctx, is_server)?;
+        stream.write(end.as_bytes())?;
+        stream.write("}".as_bytes())?;
+        stream.flush()?;
         Ok(())
     }
 }
@@ -375,7 +418,10 @@ impl<'a> TableCore<'a> for Template<'a> {
         }
 
         // parse values
-        let mut values = Vec::new();
+        let mut values = Vec::with_capacity(self.main.col << 1);
+        for _ in 0..self.main.col {
+            values.push(Vec::new());
+        }
         for c in (1..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
             let mut rows = Vec::with_capacity(self.main.row - CFG.row_of_start + 1);
             let ident = self.main.cell(c, CFG.row_of_ident)?;
@@ -416,21 +462,24 @@ impl<'a> TableCore<'a> for Template<'a> {
                 }
             };
 
-            if !enum_flag.is_empty() && !ENUM_FLAGS_FILTER.contains(enum_flag) && enum_flag.chars().all(|c| c.is_alphabetic()) {
+            if !enum_flag.is_empty()
+                && !ENUM_FLAGS_FILTER.contains(enum_flag)
+                && enum_flag.chars().all(|c| c.is_alphabetic())
+            {
                 match enumflags.entry(enum_flag) {
                     std::collections::hash_map::Entry::Occupied(mut e) => {
                         e.get_mut().push(ident);
-                    },
+                    }
                     std::collections::hash_map::Entry::Vacant(e) => {
                         let mut data = Vec::with_capacity(10);
                         data.push(ident);
                         e.insert(data);
-                    },
+                    }
                 }
             }
 
             // comments
-            items.push((self.main.cell(c, CFG.row_of_comment)?, ident, ty));
+            items.push((self.main.cell(c, CFG.row_of_comment)?, ident, ty, c));
             // defaults
             if default.is_empty() || default == "None" {
                 nodefs.insert(ident);
@@ -535,13 +584,13 @@ impl<'a> TableCore<'a> for Template<'a> {
                     rows.push(value);
                 }
             }
-            values.push(rows);
+            unsafe { *values.get_unchecked_mut(c) = rows };
         }
 
         // build
         let inner_ctx = InnerBuildContext {
             skip_cols,
-            values,
+            values: values.as_ref(),
             nodefs,
             defaults,
             templates,
@@ -549,8 +598,8 @@ impl<'a> TableCore<'a> for Template<'a> {
             enumflags,
             keytypes,
         };
-        self.inner_build_client(&inner_ctx)?;
-        self.inner_build_server(&inner_ctx)?;
+        self.inner_build(&inner_ctx, false)?;
+        self.inner_build(&inner_ctx, true)?;
         Ok(())
     }
 
@@ -567,15 +616,15 @@ impl<'a> TableCore<'a> for Template<'a> {
     }
 }
 
-struct InnerBuildContext<'a> {
-    skip_cols: Vec<usize>,
-    values: Vec<Vec<Box<dyn Value>>>,
-    nodefs: HashSet<&'a str>,
-    defaults: HashMap<&'a str, (TypeInfo, Option<Box<dyn Value>>)>,
-    templates: Vec<&'a str>,
-    items: Vec<(&'a str, &'a str, &'a str)>,
-    enumflags: HashMap<&'a str, Vec<&'a str>>,
-    keytypes: Option<Vec<(&'a str, usize, &'a str)>>,
+pub(crate) struct InnerBuildContext<'a> {
+    pub(crate) skip_cols: Vec<usize>,
+    pub(crate) values: &'a [Vec<Box<dyn Value>>],
+    pub(crate) nodefs: HashSet<&'a str>,
+    pub(crate) defaults: HashMap<&'a str, (TypeInfo, Option<Box<dyn Value>>)>,
+    pub(crate) templates: Vec<&'a str>,
+    pub(crate) items: Vec<(&'a str, &'a str, &'a str, usize)>,
+    pub(crate) enumflags: HashMap<&'a str, Vec<&'a str>>,
+    pub(crate) keytypes: Option<Vec<(&'a str, usize, &'a str)>>,
 }
 
 pub struct Enums<'a> {

@@ -185,7 +185,6 @@ fn build(tables: Arc<util::AtomicLinkedList<TableEntity>>) -> Result<(), error::
 struct ExcludedFolders<'a>(HashSet<&'a str>);
 
 fn main() {
-    //let _ = std::io::Read::read(&mut std::io::stdin(), &mut [0; 1]);
     let args = Args::parse();
     create_dest_dirs(&args);
     unsafe {

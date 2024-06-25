@@ -44,6 +44,15 @@ pub enum TypeInfo {
 }
 
 impl TypeInfo {
+    #[inline]
+    pub fn is_enum(&self) -> bool {
+        match self {
+            TypeInfo::Enum(_, _) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_array_or_list(&self) -> bool {
         match self {
             Self::Array(_) | Self::FixedArray(_, _) | Self::List(_) => true,
@@ -51,15 +60,26 @@ impl TypeInfo {
         }
     }
 
+    #[inline]
     pub fn is_lstring_or_lstringarr(&self) -> bool {
+        self.is_lstring() || self.is_lstring_arr()
+    }
+
+    #[inline]
+    pub fn is_lstring(&self) -> bool {
+        self == &TypeInfo::LString
+    }
+
+    #[inline]
+    pub fn is_lstring_arr(&self) -> bool {
         match self {
-            TypeInfo::LString => true,
             TypeInfo::Array(e) if e.as_ref() == &TypeInfo::LString => true,
             TypeInfo::FixedArray(e, _) if e.as_ref() == &TypeInfo::LString => true,
             _ => false,
         }
     }
 
+    #[inline]
     pub fn contains_str_type(&self) -> bool {
         match self {
             TypeInfo::String | TypeInfo::LString => true,

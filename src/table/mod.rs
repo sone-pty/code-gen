@@ -153,17 +153,22 @@ namespace Config
         );
 
         // generate
-        views.into_iter().for_each(|v| {
-            THREADS.install(|| match v {
-                Ok(mut view) => match view.build(ctx.as_ref()) {
-                    Err(e) => {
-                        eprintln!("{}", Red.bold().paint(format!("{}", e)));
-                    }
-                    _ => {}
-                },
-                Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
-            });
-        });
+        rayon::join(
+            || {},
+            || {
+                views.into_iter().for_each(|v| {
+                    THREADS.install(|| match v {
+                        Ok(mut view) => match view.build(ctx.as_ref()) {
+                            Err(e) => {
+                                eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                            }
+                            _ => {}
+                        },
+                        Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
+                    });
+                })
+            },
+        );
         Ok(())
     }
 }
