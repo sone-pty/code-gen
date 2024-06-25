@@ -18,7 +18,7 @@ impl PreConfigData {
         Ok(ret)
     }
 
-    pub fn find_sheet(&self, name: &str) -> bool {
+    pub fn exist(&self, name: &str) -> bool {
         for v in self.extra_lang_sheets.iter() {
             if *v == *name {
                 return true;

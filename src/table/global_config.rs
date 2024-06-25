@@ -157,6 +157,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
     fn load<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
+        _: &'b [(String, ExcelTable)],
         _: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where

@@ -180,6 +180,7 @@ pub trait TableCore<'a> {
     fn load<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
+        extras: &'b [(String, ExcelTable)],
         ctx: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where
@@ -203,8 +204,10 @@ impl<'a> Table<'a> {
                 let mut template = Template::load(
                     unsafe { table.template.as_ref().unwrap_unchecked() },
                     &table.name,
+                    table.extras.as_slice(),
                     ctx.clone(),
                 )?;
+
                 if !table.enums.is_empty() {
                     let mut enums = Enums::new(table.name.as_str());
                     for (name, sheet) in table.enums.iter() {
@@ -219,6 +222,7 @@ impl<'a> Table<'a> {
                 core = Some(Box::new(GlobalConfig::load(
                     unsafe { table.global.as_ref().unwrap_unchecked() },
                     &table.name,
+                    &[],
                     ctx.clone(),
                 )?));
             }

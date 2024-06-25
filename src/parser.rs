@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use std::{cell::Cell, collections::HashMap, hint::unreachable_unchecked, ops::Neg, str::FromStr, sync::LazyLock};
+use std::{
+    cell::Cell, collections::HashMap, hint::unreachable_unchecked, ops::Neg, str::FromStr,
+    sync::LazyLock,
+};
 
 use vnlex::{
     cursor::Cursor,
@@ -341,7 +344,7 @@ fn get_integer_value<T: FromStr + Neg<Output = T> + ConstValue<T>>(
             if ty.as_ref().0.content == "short" {
                 match val.as_ref().0.content {
                     "MinValue" => Ok(T::MIN),
-                    _ => unsafe { unreachable_unchecked() }
+                    _ => unsafe { unreachable_unchecked() },
                 }
             } else {
                 unsafe { unreachable_unchecked() }
@@ -885,7 +888,9 @@ fn get_raw_literal_value(vals: &Box<literal_vals>) -> Result<String, error::Erro
             states::nodes::integer_literal::p5(_, _) => todo!(),
             states::nodes::integer_literal::p6(_) => todo!(),
             states::nodes::integer_literal::p7(_, _) => todo!(),
-            states::nodes::integer_literal::p8(t, _, v) => Ok(format!("{}.{}", t.as_ref().0.content, v.as_ref().0.content)),
+            states::nodes::integer_literal::p8(t, _, v) => {
+                Ok(format!("{}.{}", t.as_ref().0.content, v.as_ref().0.content))
+            }
         },
         literal_vals::p2(v) => match v.as_ref() {
             states::nodes::float_literal::p0(v) => Ok(v.as_ref().0.content.into()),
@@ -1003,11 +1008,11 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
     match ty {
         TypeInfo::String | TypeInfo::LString => {
             if val.starts_with('\"') && val.ends_with('\"') {
-                return Ok(format!("{}", val))
+                return Ok(format!("{}", val));
             } else {
-                return Ok(format!("\"{}\"", val))
+                return Ok(format!("\"{}\"", val));
             }
-        },
+        }
         TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
             if val == "" {
                 return Ok("".into());

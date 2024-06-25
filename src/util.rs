@@ -5,7 +5,7 @@ use std::{
 
 use xlsx_read::excel_file::ExcelFile;
 
-use crate::{error::Error, table::TableEntity};
+use crate::{error::Error, preconfig::PRECONFIG, table::TableEntity};
 
 pub fn conv_col_idx(mut n: usize) -> String {
     let mut result = String::new();
@@ -36,7 +36,13 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
             v if v.starts_with("t_") => {
                 entity.enums.push(((&v[2..]).into(), table));
             }
-            v => {}
+            v => {
+                if let Some(preconfig) = PRECONFIG.get(v) {
+                    if preconfig.exist(v) {
+                        entity.extras.push((v.into(), table));
+                    }
+                }
+            }
         }
     }
     Ok(entity)

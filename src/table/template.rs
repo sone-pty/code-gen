@@ -11,7 +11,7 @@ use xlsx_read::excel_table::ExcelTable;
 
 use crate::{
     config::{
-        CFG, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SERVER_ENUM_CODE_DIR, REF_TEXT_DIR,
+        CFG, ENUM_FLAGS_FILTER, LANG_OUTPUT_DIR, OUTPUT_ENUM_CODE_DIR, OUTPUT_SERVER_ENUM_CODE_DIR, REF_TEXT_DIR
     },
     error::Error,
     types::{TypeInfo, Value},
@@ -25,17 +25,20 @@ pub struct Template<'a> {
     pub(crate) enums: Option<Enums<'a>>,
     main: Sheet<'a>,
     fk_cols: Vec<usize>,
+    extras: Vec<(&'a str, &'a str)>,
 }
 
 impl<'a> Template<'a> {
     fn load_template<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
+        extras: &'b [(String, ExcelTable)],
         ctx: &BuildContext,
     ) -> Result<Self, Error> {
         let row = Table::get_sheet_height(table)?;
         let col = table.width();
         let mut table_refs_set = HashSet::new();
+        let mut extra_sheets = vec![];
 
         // build row data
         let data = unsafe {
@@ -118,12 +121,25 @@ impl<'a> Template<'a> {
         // flush
         ref_file.flush()?;
 
+        // extras
+        for (_, sheet) in extras.iter() {
+            for r in 2..sheet.height() {
+                match (sheet.cell_content(0, r), sheet.cell_content(1, r)) {
+                    (Some(v1), Some(v2)) => {
+                        extra_sheets.push((v1, v2));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         ctx.refs.insert(name.into(), (refs, max_ref_num));
         Ok(Self {
             main: Sheet { col, row, data },
             enums: None,
             name: name.into(),
             fk_cols: vec![],
+            extras: extra_sheets,
         })
     }
 
@@ -283,22 +299,17 @@ impl<'a> Template<'a> {
         }
 
         // extra language entrys
-        /* self.extra_sheets.borrow().get(base_name).map(|datas| {
-            let langfile = &mut lang_file;
-            let _ = writeln!(
-                langfile,
-                ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-            );
-            for v in datas {
-                let _ = writeln!(langfile, "{}={}", v.0, v.1);
-            }
-        }); */
+        writeln!(file, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")?;
+        for (v1, v2) in self.extras.iter() {
+            writeln!(file, "{}={}", v1, v2)?;
+        }
 
         file.flush()?;
         Ok((ls_map, emptys))
     }
 
     fn inner_build_client(&self, ctx: &InnerBuildContext<'_>) -> Result<(), Error> {
+        
         Ok(())
     }
 
@@ -322,6 +333,10 @@ impl<'a> TableCore<'a> for Template<'a> {
         let mut required = Vec::new();
         let mut nodefs = HashSet::new();
         let mut defaults = HashMap::new();
+        let mut templates = Vec::with_capacity(self.main.row);
+        let mut items = Vec::new();
+        let mut enumflags: HashMap<_, Vec<&str>> = HashMap::new();
+        let mut keytypes = None;
 
         // collect skip_cols and required fields and defkeys and enum flags
         for c in 0..self.main.col {
@@ -331,12 +346,32 @@ impl<'a> TableCore<'a> for Template<'a> {
                 skip_cols.push(c);
                 if ident.contains("DefKey") {
                     defkey = c;
+                    keytypes = Some(Vec::new());
                 }
             } else if ident.is_empty() {
                 skip_cols.push(c);
             } else {
                 required.push(ident);
             }
+        }
+
+        // collect defkey
+        if let Some(ref mut vec) = keytypes {
+            for r in CFG.row_of_start..self.main.row {
+                let v0 = self.main.cell(0, r)?;
+                let v1 = self.main.cell(defkey, r)?;
+                if !v0.is_empty() && !v1.is_empty() {
+                    vec.push((v1, r - CFG.row_of_start, v0));
+                }
+            }
+        }
+
+        // template ids
+        for r in (CFG.row_of_start..self.main.row)
+            .map(|v| self.main.cell(0, v))
+            .filter(|v| v.as_ref().is_ok_and(|v| !v.is_empty()))
+        {
+            templates.push(r?);
         }
 
         // parse values
@@ -381,6 +416,21 @@ impl<'a> TableCore<'a> for Template<'a> {
                 }
             };
 
+            if !enum_flag.is_empty() && !ENUM_FLAGS_FILTER.contains(enum_flag) && enum_flag.chars().all(|c| c.is_alphabetic()) {
+                match enumflags.entry(enum_flag) {
+                    std::collections::hash_map::Entry::Occupied(mut e) => {
+                        e.get_mut().push(ident);
+                    },
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        let mut data = Vec::with_capacity(10);
+                        data.push(ident);
+                        e.insert(data);
+                    },
+                }
+            }
+
+            // comments
+            items.push((self.main.cell(c, CFG.row_of_comment)?, ident, ty));
             // defaults
             if default.is_empty() || default == "None" {
                 nodefs.insert(ident);
@@ -494,6 +544,10 @@ impl<'a> TableCore<'a> for Template<'a> {
             values,
             nodefs,
             defaults,
+            templates,
+            items,
+            enumflags,
+            keytypes,
         };
         self.inner_build_client(&inner_ctx)?;
         self.inner_build_server(&inner_ctx)?;
@@ -503,12 +557,13 @@ impl<'a> TableCore<'a> for Template<'a> {
     fn load<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
+        extras: &'b [(String, ExcelTable)],
         ctx: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where
         Self: Sized,
     {
-        Self::load_template(table, name, ctx.as_ref())
+        Self::load_template(table, name, extras, ctx.as_ref())
     }
 }
 
@@ -517,6 +572,10 @@ struct InnerBuildContext<'a> {
     values: Vec<Vec<Box<dyn Value>>>,
     nodefs: HashSet<&'a str>,
     defaults: HashMap<&'a str, (TypeInfo, Option<Box<dyn Value>>)>,
+    templates: Vec<&'a str>,
+    items: Vec<(&'a str, &'a str, &'a str)>,
+    enumflags: HashMap<&'a str, Vec<&'a str>>,
+    keytypes: Option<Vec<(&'a str, usize, &'a str)>>,
 }
 
 pub struct Enums<'a> {
