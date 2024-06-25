@@ -136,16 +136,15 @@ impl Value for FixedArray {
         if self.is_null {
             stream.write_str("null")?;
         } else {
-
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code_fmt(stream)?;
-                stream.write_str(", ")?;
+            stream.write_fmt(format_args!("new {}{{", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code_fmt(stream)?;
+                    stream.write_str(", ")?;
+                }
+                self.vals.last().unwrap().code_fmt(stream)?;
             }
-            self.vals.last().unwrap().code_fmt(stream)?;
-        }
-        stream.write_char('}')?;
+            stream.write_char('}')?;
         }
         Ok(())
     }
@@ -175,16 +174,15 @@ impl Value for FixedArray {
         if self.is_null {
             stream.write("null".as_bytes())?;
         } else {
-
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
-        if !self.vals.is_empty() {
-            for v in &self.vals[0..self.vals.len() - 1] {
-                v.code(stream)?;
-                stream.write(", ".as_bytes())?;
+            stream.write_fmt(format_args!("new {}{{", self.ty))?;
+            if !self.vals.is_empty() {
+                for v in &self.vals[0..self.vals.len() - 1] {
+                    v.code(stream)?;
+                    stream.write(", ".as_bytes())?;
+                }
+                self.vals.last().unwrap().code(stream)?;
             }
-            self.vals.last().unwrap().code(stream)?;
-        }
-        stream.write("}".as_bytes())?;
+            stream.write("}".as_bytes())?;
         }
         Ok(())
     }

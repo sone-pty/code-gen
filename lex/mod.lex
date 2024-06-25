@@ -22,6 +22,7 @@ integer_literal
     | @integer _ @ident
     | @hex_integer
     | @hex_integer _ @ident
+    | "short" '.' "MinValue"
     ;
 
 float_literal

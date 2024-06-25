@@ -60,7 +60,9 @@ impl Value for LString {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("{}", self.idx))?;
+        if self.idx >= 0 {
+            stream.write_fmt(format_args!("{}", self.idx))?;
+        }
         Ok(())
     }
 
@@ -78,7 +80,9 @@ impl Value for LString {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("{}", self.idx))?;
+        if self.idx >= 0 {
+            stream.write_fmt(format_args!("{}", self.idx))?;
+        }
         Ok(())
     }
 }

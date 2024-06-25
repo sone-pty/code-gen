@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{cell::Cell, collections::HashMap, ops::Neg, str::FromStr, sync::LazyLock};
+use std::{cell::Cell, collections::HashMap, hint::unreachable_unchecked, ops::Neg, str::FromStr, sync::LazyLock};
 
 use vnlex::{
     cursor::Cursor,
@@ -279,7 +279,35 @@ fn get_value(
     }
 }
 
-fn get_integer_value<T: FromStr + Neg<Output = T>>(
+trait ConstValue<T> {
+    const MIN: T;
+}
+
+impl ConstValue<i16> for i16 {
+    const MIN: i16 = i16::MIN;
+}
+
+impl ConstValue<i32> for i32 {
+    const MIN: i32 = i32::MIN;
+}
+
+impl ConstValue<i64> for i64 {
+    const MIN: i64 = i64::MIN;
+}
+
+impl ConstValue<i8> for i8 {
+    const MIN: i8 = i8::MIN;
+}
+
+impl ConstValue<f32> for f32 {
+    const MIN: f32 = f32::MIN;
+}
+
+impl ConstValue<f64> for f64 {
+    const MIN: f64 = f64::MIN;
+}
+
+fn get_integer_value<T: FromStr + Neg<Output = T> + ConstValue<T>>(
     val: &Box<integer_literal>,
 ) -> Result<T, error::Error> {
     match val.as_ref() {
@@ -309,6 +337,16 @@ fn get_integer_value<T: FromStr + Neg<Output = T>>(
         states::nodes::integer_literal::p5(_, _) => todo!(),
         states::nodes::integer_literal::p6(_) => todo!(),
         states::nodes::integer_literal::p7(_, _) => todo!(),
+        states::nodes::integer_literal::p8(ty, _, val) => {
+            if ty.as_ref().0.content == "short" {
+                match val.as_ref().0.content {
+                    "MinValue" => Ok(T::MIN),
+                    _ => unsafe { unreachable_unchecked() }
+                }
+            } else {
+                unsafe { unreachable_unchecked() }
+            }
+        }
     }
 }
 
@@ -326,6 +364,7 @@ fn get_non_neg_integer_value<T: FromStr>(val: &Box<integer_literal>) -> Result<T
         states::nodes::integer_literal::p5(_, _) => todo!(),
         states::nodes::integer_literal::p6(_) => todo!(),
         states::nodes::integer_literal::p7(_, _) => todo!(),
+        states::nodes::integer_literal::p8(_, _, _) => todo!(),
     }
 }
 
@@ -348,16 +387,17 @@ fn parse_lstring_value(
     let raw = &raw[1..raw.len() - 1];
     let idx = {
         if raw.is_empty() {
-            let emptys = ctx
-                .ls_emptys
-                .as_ref()
-                .ok_or("Can't find lstring empty vector when parse lstring value")?;
-            if ctx.current_idx.get() >= emptys.len() {
-                return Err("Index overflow when find empty lstring value".into());
+            match ctx.ls_emptys.as_ref() {
+                Some(emptys) => {
+                    if ctx.current_idx.get() >= emptys.len() {
+                        return Err("Index overflow when find empty lstring value".into());
+                    }
+                    let val = emptys[ctx.current_idx.get()];
+                    ctx.current_idx.update(|v| v + 1);
+                    val
+                }
+                None => -1,
             }
-            let val = emptys[ctx.current_idx.get()];
-            ctx.current_idx.update(|v| v + 1);
-            val
         } else {
             let mapping = ctx.ls_map.as_ref().ok_or::<error::Error>(
                 "Can't find lstring mapping when parse lstring value".into(),
@@ -479,8 +519,12 @@ fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
 
     match literal_vals.as_ref() {
         literal_vals::p0(v) => match v.as_ref() {
-            states::nodes::bool_literal::p0(_) | states::nodes::bool_literal::p1(_) => Ok(Box::new(Bool { ty, val: true }) as _),
-            states::nodes::bool_literal::p2(_) | states::nodes::bool_literal::p3(_) => Ok(Box::new(Bool { ty, val: false }) as _),
+            states::nodes::bool_literal::p0(_) | states::nodes::bool_literal::p1(_) => {
+                Ok(Box::new(Bool { ty, val: true }) as _)
+            }
+            states::nodes::bool_literal::p2(_) | states::nodes::bool_literal::p3(_) => {
+                Ok(Box::new(Bool { ty, val: false }) as _)
+            }
         },
         literal_vals::p1(v) => {
             let val = get_integer_value::<i32>(v)?;
@@ -489,7 +533,7 @@ fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
             } else {
                 Ok(Box::new(Bool { ty, val: false }) as _)
             }
-        },
+        }
         _ => return Err("Bool type need integer val or bool val".into()),
     }
 }
@@ -615,7 +659,7 @@ fn parse_array_value(
                 }) as _);
             }
             (raw, None)
-        },
+        }
         // Fixed Array
         array_type::p1(raw, _, _, _) => {
             if let values::p3(_) = vals.as_ref() {
@@ -626,7 +670,7 @@ fn parse_array_value(
                 }) as _);
             }
             (raw, Some(()))
-        },
+        }
     };
 
     let values::p1(array_vals) = vals.as_ref() else {
@@ -665,7 +709,11 @@ fn parse_array_value(
             is_null: false,
         }) as _)
     } else {
-        Ok(Box::new(FixedArray { ty, vals, is_null: false, }) as _)
+        Ok(Box::new(FixedArray {
+            ty,
+            vals,
+            is_null: false,
+        }) as _)
     }
 }
 
@@ -837,6 +885,7 @@ fn get_raw_literal_value(vals: &Box<literal_vals>) -> Result<String, error::Erro
             states::nodes::integer_literal::p5(_, _) => todo!(),
             states::nodes::integer_literal::p6(_) => todo!(),
             states::nodes::integer_literal::p7(_, _) => todo!(),
+            states::nodes::integer_literal::p8(t, _, v) => Ok(format!("{}.{}", t.as_ref().0.content, v.as_ref().0.content)),
         },
         literal_vals::p2(v) => match v.as_ref() {
             states::nodes::float_literal::p0(v) => Ok(v.as_ref().0.content.into()),
@@ -952,7 +1001,13 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
 pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Error> {
     let mut ret = String::new();
     match ty {
-        TypeInfo::String | TypeInfo::LString => return Ok(format!("\"{}\"", val)),
+        TypeInfo::String | TypeInfo::LString => {
+            if val.starts_with('\"') && val.ends_with('\"') {
+                return Ok(format!("{}", val))
+            } else {
+                return Ok(format!("\"{}\"", val))
+            }
+        },
         TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
             if val == "" {
                 return Ok("".into());

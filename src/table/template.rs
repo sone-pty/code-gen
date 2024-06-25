@@ -189,7 +189,7 @@ impl<'a> Template<'a> {
     ) -> Result<(HashMap<String, i32>, HashMap<(usize, usize), Vec<i32>>), Error> {
         let mut seed = 0i32;
         let mut ls_map = HashMap::new();
-        let mut emptys = HashMap::new();
+        let mut emptys: HashMap<(usize, usize), Vec<i32>> = HashMap::new();
         let mut path = std::path::Path::new(unsafe { LANG_OUTPUT_DIR }).to_path_buf();
         path.push(format!("{}_language", self.name));
         path.set_extension("txt");
@@ -203,7 +203,7 @@ impl<'a> Template<'a> {
             let default = self.main.cell(c, CFG.row_of_default)?;
             let ty = self.main.cell(c, CFG.row_of_type)?;
 
-            for r in CFG.row_of_start..self.main.row {
+            'row: for r in CFG.row_of_start..self.main.row {
                 let val = {
                     let v = self.main.cell(c, r)?;
                     if v.is_empty() {
@@ -219,7 +219,7 @@ impl<'a> Template<'a> {
                     let fval = val.chars().filter(|c| *c != ' ').collect::<String>();
 
                     if fval.is_empty() || val == "{}" {
-                        return Ok((ls_map, emptys));
+                        continue 'row;
                     }
 
                     if !fval.starts_with('{') || !fval.ends_with('}') {
@@ -810,12 +810,12 @@ impl<'a> FKValue<'a> {
                 } else if let Some(replace) = refs.0.get(*v.1) {
                     std::fmt::Write::write_fmt(output, format_args!("{}", *replace))?;
                 } else {
-                    return Err(format!(
+                    /* return Err(format!(
                         "Can't find ref about key `{}` in table {}",
                         v.1, fk_names[num]
                     )
-                    .into());
-                    //output.push_str("-1");
+                    .into()); */
+                    output.push_str("-1");
                 }
             }
 
@@ -858,9 +858,9 @@ impl<'a> FKValue<'a> {
                 } else if let Some(replace) = refs.0.get(*v.1) {
                     std::fmt::Write::write_fmt(output, format_args!("{}", *replace))?;
                 } else {
-                    return Err(
+                    /* return Err(
                         format!("Can't find ref about key `{}` in table {}", v.1, pat).into(),
-                    );
+                    ); */
                 }
             }
 
@@ -887,10 +887,10 @@ impl<'a> FKValue<'a> {
             if let Some(v) = refs.0.get(&rev) {
                 std::fmt::Write::write_fmt(dest, format_args!("{}", *v))?;
             } else {
-                return Err(
+                /* return Err(
                     format!("Can't find ref about key `{}` in table {}", rev, refs.key()).into(),
-                );
-                //dest.push_str("-1");
+                ); */
+                dest.push_str("-1");
             }
         }
         Ok(())

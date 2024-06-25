@@ -15,3 +15,4 @@ run.sh
 /Data
 ConfigCollection.cs
 output.cs
+src/.vs/

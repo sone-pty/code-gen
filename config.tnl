@@ -14,7 +14,7 @@ config: @config {
     eof_flag: "#EOF"
     source_table_suffix: "xlsx"
     dest_code_suffix: "cs"
-    ref_text_suffix: "ref.text"
+    ref_text_suffix: "ref.txt"
     language_file_name: "ui_language"
     language_xlsx_name: "LString.xlsx"
     language_file_suffix: "txt"
