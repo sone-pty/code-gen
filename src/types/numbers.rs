@@ -158,9 +158,13 @@ impl Value for Short {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream
-            .write_fmt(format_args!("{}", self.val))
-            .map_err(|e| e.into())
+        if self.val == i16::MIN {
+            stream.write_str("short.MinValue").map_err(|e| e.into())
+        } else {
+            stream
+                .write_fmt(format_args!("{}", self.val))
+                .map_err(|e| e.into())
+        }
     }
 
     fn check(&self) -> bool {
@@ -177,9 +181,14 @@ impl Value for Short {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream
-            .write_fmt(format_args!("{}", self.val))
-            .map_err(|e| e.into())
+        if self.val == i16::MIN {
+            stream.write("short.MinValue".as_bytes())?;
+            Ok(())
+        } else {
+            stream
+                .write_fmt(format_args!("{}", self.val))
+                .map_err(|e| e.into())
+        }
     }
 }
 

@@ -24,11 +24,11 @@ impl Value for Custom {
                     .map(|v| v.as_str().trim())
                 {
                     if v == "{}" {
-                        stream.write_str("default, ")?;
+                        stream.write_str("default,")?;
                     } else if v.starts_with("{") {
-                        stream.write_fmt(format_args!("new []{}, ", v))?;
+                        stream.write_fmt(format_args!("new []{},", v.replace(" ", "")))?;
                     } else {
-                        stream.write_fmt(format_args!("{}, ", v))?;
+                        stream.write_fmt(format_args!("{},", v.replace(" ", "")))?;
                     }
                 }
 
@@ -36,9 +36,9 @@ impl Value for Custom {
                 if v == "{}" {
                     stream.write_str("default")?;
                 } else if v.starts_with("{") {
-                    stream.write_fmt(format_args!("new []{}", v))?;
+                    stream.write_fmt(format_args!("new []{}", v.replace(" ", "")))?;
                 } else {
-                    stream.write_fmt(format_args!("{}", v))?;
+                    stream.write_fmt(format_args!("{}", v.replace(" ", "")))?;
                 }
             }
             stream.write_char(')')?;
@@ -74,11 +74,11 @@ impl Value for Custom {
                     .map(|v| v.as_str().trim())
                 {
                     if v == "{}" {
-                        stream.write("default, ".as_bytes())?;
+                        stream.write("default,".as_bytes())?;
                     } else if v.starts_with("{") {
-                        stream.write_fmt(format_args!("new []{}, ", v))?;
+                        stream.write_fmt(format_args!("new []{},", v.replace(" ", "")))?;
                     } else {
-                        stream.write_fmt(format_args!("{}, ", v))?;
+                        stream.write_fmt(format_args!("{},", v.replace(" ", "")))?;
                     }
                 }
 
@@ -86,9 +86,9 @@ impl Value for Custom {
                 if v == "{}" {
                     stream.write("default".as_bytes())?;
                 } else if v.starts_with("{") {
-                    stream.write_fmt(format_args!("new []{}", v))?;
+                    stream.write_fmt(format_args!("new []{}", v.replace(" ", "")))?;
                 } else {
-                    stream.write_fmt(format_args!("{}", v))?;
+                    stream.write_fmt(format_args!("{}", v.replace(" ", "")))?;
                 }
             }
             stream.write(")".as_bytes())?;

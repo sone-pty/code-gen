@@ -20,7 +20,7 @@ impl Value for List {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code_fmt(stream)?;
-                    stream.write_str(", ")?;
+                    stream.write_str(",")?;
                 }
                 self.vals.last().unwrap().code_fmt(stream)?;
             }
@@ -50,7 +50,7 @@ impl Value for List {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code(stream)?;
-                    stream.write(", ".as_bytes())?;
+                    stream.write(",".as_bytes())?;
                 }
                 self.vals.last().unwrap().code(stream)?;
             }
@@ -80,7 +80,7 @@ impl Value for ShortList {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code_fmt(stream)?;
-                    stream.write_str(", ")?;
+                    stream.write_str(",")?;
                 }
                 self.vals.last().unwrap().code_fmt(stream)?;
             }
@@ -110,7 +110,7 @@ impl Value for ShortList {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code(stream)?;
-                    stream.write(", ".as_bytes())?;
+                    stream.write(",".as_bytes())?;
                 }
                 self.vals.last().unwrap().code(stream)?;
             }
@@ -140,7 +140,7 @@ impl Value for FixedArray {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code_fmt(stream)?;
-                    stream.write_str(", ")?;
+                    stream.write_str(",")?;
                 }
                 self.vals.last().unwrap().code_fmt(stream)?;
             }
@@ -178,7 +178,7 @@ impl Value for FixedArray {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code(stream)?;
-                    stream.write(", ".as_bytes())?;
+                    stream.write(",".as_bytes())?;
                 }
                 self.vals.last().unwrap().code(stream)?;
             }
@@ -208,7 +208,7 @@ impl Value for Array {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code_fmt(stream)?;
-                    stream.write_str(", ")?;
+                    stream.write_str(",")?;
                 }
                 self.vals.last().unwrap().code_fmt(stream)?;
             }
@@ -241,7 +241,7 @@ impl Value for Array {
             if !self.vals.is_empty() {
                 for v in &self.vals[0..self.vals.len() - 1] {
                     v.code(stream)?;
-                    stream.write(", ".as_bytes())?;
+                    stream.write(",".as_bytes())?;
                 }
                 self.vals.last().unwrap().code(stream)?;
             }
@@ -263,15 +263,15 @@ impl Value for Tuple {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
+        stream.write_fmt(format_args!("new {}(", self.ty))?;
         if !self.vals.is_empty() {
             for v in &self.vals[0..self.vals.len() - 1] {
                 v.code_fmt(stream)?;
-                stream.write_str(", ")?;
+                stream.write_str(",")?;
             }
             self.vals.last().unwrap().code_fmt(stream)?;
         }
-        stream.write_char('}')?;
+        stream.write_char(')')?;
         Ok(())
     }
 
@@ -297,15 +297,15 @@ impl Value for Tuple {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
+        stream.write_fmt(format_args!("new {}(", self.ty))?;
         if !self.vals.is_empty() {
             for v in &self.vals[0..self.vals.len() - 1] {
                 v.code(stream)?;
-                stream.write(", ".as_bytes())?;
+                stream.write(",".as_bytes())?;
             }
             self.vals.last().unwrap().code(stream)?;
         }
-        stream.write("}".as_bytes())?;
+        stream.write(")".as_bytes())?;
         Ok(())
     }
 }
@@ -322,15 +322,15 @@ impl Value for ValueTuple {
     }
 
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
+        stream.write_fmt(format_args!("new {}(", self.ty))?;
         if !self.vals.is_empty() {
             for v in &self.vals[0..self.vals.len() - 1] {
                 v.code_fmt(stream)?;
-                stream.write_str(", ")?;
+                stream.write_str(",")?;
             }
             self.vals.last().unwrap().code_fmt(stream)?;
         }
-        stream.write_char('}')?;
+        stream.write_char(')')?;
         Ok(())
     }
 
@@ -356,15 +356,15 @@ impl Value for ValueTuple {
     }
 
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), crate::error::Error> {
-        stream.write_fmt(format_args!("new {}{{", self.ty))?;
+        stream.write_fmt(format_args!("new {}(", self.ty))?;
         if !self.vals.is_empty() {
             for v in &self.vals[0..self.vals.len() - 1] {
                 v.code(stream)?;
-                stream.write(", ".as_bytes())?;
+                stream.write(",".as_bytes())?;
             }
             self.vals.last().unwrap().code(stream)?;
         }
-        stream.write("}".as_bytes())?;
+        stream.write(")".as_bytes())?;
         Ok(())
     }
 }

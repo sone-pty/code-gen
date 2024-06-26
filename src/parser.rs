@@ -466,7 +466,7 @@ fn parse_shortlist_value(
                 is_null: false,
             }) as _)
         }
-        _ => return Err("".into()),
+        _ => return Err("Parse ShortList type failed".into()),
     }
 }
 
@@ -493,7 +493,7 @@ fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
     match vals.as_ref() {
         values::p0(literal_vals) => {
             let literal_vals::p3(string_vals) = literal_vals.as_ref() else {
-                return Err("".into());
+                return Err("expected literal vals when parse string value".into());
             };
             let raw = string_vals.as_ref().0.content;
             if raw.len() < 2 {
@@ -511,13 +511,13 @@ fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
             val: "".into(),
             is_null: true,
         }) as _),
-        _ => return Err("".into()),
+        _ => return Err("Invalid literal vals for string".into()),
     }
 }
 
 fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse bool value".into());
     };
 
     match literal_vals.as_ref() {
@@ -543,11 +543,11 @@ fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
 
 fn parse_uint_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse uint value".into());
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+        return Err("expected integer vals when parse uint value".into());
     };
     let val = get_non_neg_integer_value(integer_vals)?;
     Ok(Box::new(UInt { ty, val }) as _)
@@ -568,7 +568,7 @@ fn parse_short_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
 
 fn parse_ushort_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse ushort value".into());
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
@@ -580,7 +580,7 @@ fn parse_ushort_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
 
 fn parse_byte_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse byte value".into());
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
@@ -593,11 +593,11 @@ fn parse_byte_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
 
 fn parse_sbyte_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse sbyte value".into());
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+        return Err("expected integer vals when parse sbyte value".into());
     };
 
     let val = get_integer_value(integer_vals)?;
@@ -884,7 +884,21 @@ fn get_raw_literal_value(vals: &Box<literal_vals>) -> Result<String, error::Erro
             states::nodes::integer_literal::p1(_, _) => todo!(),
             states::nodes::integer_literal::p2(_) => todo!(),
             states::nodes::integer_literal::p3(_, _) => todo!(),
-            states::nodes::integer_literal::p4(v) => Ok(v.as_ref().0.content.into()),
+            states::nodes::integer_literal::p4(v) => {
+                let (_, minus) = v
+                    .as_ref()
+                    .0
+                    .data
+                    .get_custom()
+                    .ok_or::<error::Error>("get custom cdata failed".into())?
+                    .into_digits()
+                    .ok_or::<error::Error>("".into())?;
+                if minus {
+                    Ok(format!("-{}", v.as_ref().0.content))
+                } else {
+                    Ok(format!("{}", v.as_ref().0.content))
+                }
+            }
             states::nodes::integer_literal::p5(_, _) => todo!(),
             states::nodes::integer_literal::p6(_) => todo!(),
             states::nodes::integer_literal::p7(_, _) => todo!(),
@@ -942,11 +956,11 @@ fn parse_array_elements_value(
 
 fn parse_int_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse int value".into());
     };
 
     let literal_vals::p1(integer_vals) = literal_vals.as_ref() else {
-        return Err("".into());
+        return Err("expected integer vals when parse int value".into());
     };
 
     let val = get_integer_value(integer_vals)?;
@@ -955,7 +969,7 @@ fn parse_int_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, e
 
 fn parse_float_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse float value".into());
     };
 
     let val = match literal_vals.as_ref() {
@@ -972,7 +986,7 @@ fn parse_float_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
             states::nodes::float_literal::p4(_, _, _) => todo!(),
             states::nodes::float_literal::p5(_, _, _, _) => todo!(),
         },
-        _ => return Err("".into()),
+        _ => return Err("Invalid literal vals for float".into()),
     };
 
     Ok(Box::new(Float { ty, val }) as _)
@@ -980,7 +994,7 @@ fn parse_float_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
 
 fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
     let values::p0(literal_vals) = vals.as_ref() else {
-        return Err("".into());
+        return Err("expected literal vals when parse double value".into());
     };
 
     let val = match literal_vals.as_ref() {
@@ -997,7 +1011,7 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
             states::nodes::float_literal::p4(_, _, _) => todo!(),
             states::nodes::float_literal::p5(_, _, _, _) => todo!(),
         },
-        _ => return Err("".into()),
+        _ => return Err("Invalid literal vals for double".into()),
     };
 
     Ok(Box::new(Double { ty, val }) as _)

@@ -17,6 +17,9 @@ impl Value for SString {
             stream.write_str("null")?;
             Ok(())
         } else {
+            if self.val.contains("\\") {
+                stream.write_char('@')?;
+            }
             stream
                 .write_fmt(format_args!("\"{}\"", self.val))
                 .map_err(|e| e.into())
@@ -41,6 +44,9 @@ impl Value for SString {
             stream.write("null".as_bytes())?;
             Ok(())
         } else {
+            if self.val.contains("\\") {
+                stream.write("@".as_bytes())?;
+            }
             stream
                 .write_fmt(format_args!("\"{}\"", self.val))
                 .map_err(|e| e.into())

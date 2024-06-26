@@ -45,6 +45,14 @@ pub enum TypeInfo {
 
 impl TypeInfo {
     #[inline]
+    pub fn is_string(&self) -> bool {
+        match self {
+            TypeInfo::String => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     pub fn is_enum(&self) -> bool {
         match self {
             TypeInfo::Enum(_, _) => true,
@@ -80,7 +88,7 @@ impl TypeInfo {
     }
 
     #[inline]
-    pub fn contains_str_type(&self) -> bool {
+    pub fn contains_string_or_lstring(&self) -> bool {
         match self {
             TypeInfo::String | TypeInfo::LString => true,
             TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
@@ -114,7 +122,7 @@ impl Display for TypeInfo {
             TypeInfo::Tuple(vals) => {
                 f.write_str("Tuple<")?;
                 for v in &vals[0..vals.len() - 1] {
-                    f.write_fmt(format_args!("{}, ", v))?;
+                    f.write_fmt(format_args!("{},", v))?;
                 }
                 f.write_fmt(format_args!("{}", vals.last().unwrap()))?;
                 f.write_char('>')
@@ -125,7 +133,7 @@ impl Display for TypeInfo {
             TypeInfo::ValueTuple(vals) => {
                 f.write_str("ValueTuple<")?;
                 for v in &vals[0..vals.len() - 1] {
-                    f.write_fmt(format_args!("{}, ", v))?;
+                    f.write_fmt(format_args!("{},", v))?;
                 }
                 f.write_fmt(format_args!("{}", vals.last().unwrap()))?;
                 f.write_char('>')

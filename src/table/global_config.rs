@@ -112,7 +112,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
                 let value_ty = crate::parser::parse_type(*ty, 0, 0)?;
                 let tyinfo = crate::parser::get_value_type(&value_ty)?;
 
-                if tyinfo.contains_str_type() {
+                if tyinfo.contains_string_or_lstring() {
                     let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
                     let value =
                         match crate::parser::parse_assign_with_type(&value_ty, &tval, None, None) {

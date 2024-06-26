@@ -160,11 +160,13 @@ namespace Config
                     THREADS.install(|| match v {
                         Ok(mut view) => match view.build(ctx.as_ref()) {
                             Err(e) => {
-                                eprintln!("{}", Red.bold().paint(format!("{}", e)));
+                                eprintln!("{}", Red.bold().paint(format!("Build failed: {}", e)));
                             }
                             _ => {}
                         },
-                        Err(e) => eprintln!("{}", Red.bold().paint(format!("{}", e))),
+                        Err(e) => {
+                            eprintln!("{}", Red.bold().paint(format!("Invalid tableview: {}", e)))
+                        }
                     });
                 })
             },
@@ -310,9 +312,13 @@ impl<'a> Sheet<'a> {
         }
     }
 
-    pub fn cell(&self, col: usize, row: usize) -> Result<&str, Error> {
+    pub fn cell(&self, col: usize, row: usize, trim: bool) -> Result<&str, Error> {
         if col < self.col && row < self.row {
-            Ok(*self.data[row].value(col)?)
+            if trim {
+                Ok(self.data[row].value(col)?.trim())
+            } else {
+                Ok(*self.data[row].value(col)?)
+            }
         } else {
             Err("Index was out of range".into())
         }

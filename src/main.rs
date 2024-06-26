@@ -186,6 +186,7 @@ fn build(tables: Arc<util::AtomicLinkedList<TableEntity>>) -> Result<(), error::
 struct ExcludedFolders<'a>(HashSet<&'a str>);
 
 fn main() {
+    //let _ = std::io::Read::read(&mut std::io::stdin(), &mut [0; 1]);
     let args = Args::parse();
     create_dest_dirs(&args);
     unsafe {
@@ -262,8 +263,8 @@ fn main() {
 #[test]
 fn test() {
     let mut display = String::new();
-    let ty = parser::parse_type("string[]", 0, 0).unwrap();
-    let val = parser::parse_assign_with_type(&ty, r##"{"hairup","bangs","hairup_double_l","hairup_double_r","skirt/skirt","equip_shank_r","equip_shank_l"}"##, None, None).unwrap();
+    let ty = parser::parse_type("enum LifeRecord.ScoreType", 0, 0).unwrap();
+    let val = parser::parse_assign_with_type(&ty, "c", None, None).unwrap();
     if val.check() {
         let _ = val.code_fmt(&mut display);
     } else {

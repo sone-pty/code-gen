@@ -156,7 +156,7 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
         for (idx, v) in ctx.required.iter().skip(1).enumerate() {
             let rows = unsafe { ctx.values.get_unchecked(v.0) };
             rows[row].code_fmt(&mut piece)?;
-            if idx < ctx.required.len() - 1 {
+            if idx < ctx.required.len() - 2 {
                 piece.push(',');
             }
         }
@@ -545,13 +545,16 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
     for v in template
         .fk_cols
         .iter()
-        .map(|v| template.main.cell(*v, CFG.row_of_ident))
+        .map(|v| template.main.cell(*v, CFG.row_of_ident, true))
     {
-        format(tab_nums + 2, stream)?;
-        stream.write_fmt(format_args!("\"{}\",{}", v?, end))?;
+        let v = v?;
+        if !v.is_empty() {
+            format(tab_nums + 2, stream)?;
+            stream.write_fmt(format_args!("\"{}\",{}", v, end))?;
+        }
     }
 
-    for v in ctx.required.iter() {
+    for v in ctx.required.iter().filter(|v| !v.1.is_empty()) {
         if ctx.nodefs.contains(v.1) && !template.fk_cols.contains(&v.0) {
             format(tab_nums + 2, stream)?;
             stream.write_fmt(format_args!("\"{}\",{}", v.1, end))?;

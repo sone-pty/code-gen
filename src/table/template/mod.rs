@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
+    hash::Hash,
     io::{BufReader, Write},
     marker::PhantomData,
     sync::Arc,
@@ -54,7 +55,7 @@ impl<'a> Template<'a> {
                 for c in 0..col {
                     row_data[c]
                         .as_mut_ptr()
-                        .write(table.cell_content(c, r).unwrap_or("").trim());
+                        .write(table.cell_content(c, r).unwrap_or(""));
                 }
                 raw[r]
                     .as_mut_ptr()
@@ -79,7 +80,7 @@ impl<'a> Template<'a> {
 
         // check ref
         for r in CFG.row_of_start..row {
-            table_refs_set.insert(*data[r].value(0)?);
+            table_refs_set.insert(data[r].value(0)?.trim());
             let ref_id = table
                 .cell_content(0, r)
                 .ok_or::<Error>(
@@ -119,7 +120,7 @@ impl<'a> Template<'a> {
                 eprintln!(
                     "{}",
                     Red.bold().paint(format!(
-                        "[Error]: In the table {}.xlsx, lack of row: {} which is found in ref.txt",
+                        "In the table {}, lack of row: {} which is found in ref.txt",
                         name, id,
                     ))
                 );
@@ -200,7 +201,7 @@ impl<'a> Template<'a> {
 
     fn build_fk_values<'c, 'b: 'c>(&mut self, ctx: &'b BuildContext) -> Result<FKValue<'c>, Error> {
         for c in 0..self.main.col {
-            let pattern = self.main.cell(c, CFG.row_of_fk)?;
+            let pattern = self.main.cell(c, CFG.row_of_fk, true)?;
             if pattern.starts_with('*') {
                 self.fk_cols.push(c);
             }
@@ -219,17 +220,16 @@ impl<'a> Template<'a> {
         path.set_extension("txt");
         let mut file = File::create(path.as_path())?;
 
-        for c in (0..self.main.col).filter(|v| {
-            self.main
-                .cell(*v, CFG.row_of_type)
-                .is_ok_and(|v| v.contains("Lstring") || v.contains("LString"))
-        }) {
-            let default = self.main.cell(c, CFG.row_of_default)?;
-            let ty = self.main.cell(c, CFG.row_of_type)?;
-
-            'row: for r in CFG.row_of_start..self.main.row {
+        for r in CFG.row_of_start..self.main.row {
+            'col: for c in (0..self.main.col).filter(|v| {
+                self.main
+                    .cell(*v, CFG.row_of_type, true)
+                    .is_ok_and(|v| v.contains("Lstring") || v.contains("LString"))
+            }) {
+                let default = self.main.cell(c, CFG.row_of_default, true)?;
+                let ty = self.main.cell(c, CFG.row_of_type, true)?;
                 let val = {
-                    let v = self.main.cell(c, r)?;
+                    let v = self.main.cell(c, r, true)?;
                     if v.is_empty() {
                         default
                     } else {
@@ -243,7 +243,7 @@ impl<'a> Template<'a> {
                     let fval = val.chars().filter(|c| *c != ' ').collect::<String>();
 
                     if fval.is_empty() || val == "{}" {
-                        continue 'row;
+                        continue 'col;
                     }
 
                     if !fval.starts_with('{') || !fval.ends_with('}') {
@@ -390,7 +390,7 @@ impl<'a> TableCore<'a> for Template<'a> {
 
         // collect skip_cols and required fields and defkeys and enum flags
         for c in 0..self.main.col {
-            let ident = self.main.cell(c, CFG.row_of_ident)?;
+            let ident = self.main.cell(c, CFG.row_of_ident, true)?;
 
             if ident.starts_with('#') {
                 skip_cols.push(c);
@@ -408,8 +408,8 @@ impl<'a> TableCore<'a> for Template<'a> {
         // collect defkey
         if let Some(ref mut vec) = keytypes {
             for r in CFG.row_of_start..self.main.row {
-                let v0 = self.main.cell(0, r)?;
-                let v1 = self.main.cell(defkey, r)?;
+                let v0 = self.main.cell(0, r, true)?;
+                let v1 = self.main.cell(defkey, r, true)?;
                 if !v0.is_empty() && !v1.is_empty() {
                     vec.push((v1, r - CFG.row_of_start, v0));
                 }
@@ -418,7 +418,7 @@ impl<'a> TableCore<'a> for Template<'a> {
 
         // template ids
         for r in (CFG.row_of_start..self.main.row)
-            .map(|v| self.main.cell(0, v))
+            .map(|v| self.main.cell(0, v, true))
             .filter(|v| v.as_ref().is_ok_and(|v| !v.is_empty()))
         {
             templates.push(r?);
@@ -431,8 +431,8 @@ impl<'a> TableCore<'a> for Template<'a> {
         }
         for c in (0..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
             let mut rows = Vec::with_capacity(self.main.row - CFG.row_of_start + 1);
-            let ident = self.main.cell(c, CFG.row_of_ident)?;
-            let ty = self.main.cell(c, CFG.row_of_type)?;
+            let ident = self.main.cell(c, CFG.row_of_ident, true)?;
+            let ty = self.main.cell(c, CFG.row_of_type, true)?;
             let ety = format!("enum {}.{}", self.name, ident);
             let value_ty = {
                 if ty == "enum" {
@@ -442,14 +442,14 @@ impl<'a> TableCore<'a> for Template<'a> {
                 }
             };
             let tyinfo = crate::parser::get_value_type(&value_ty)?;
-            let enum_flag = self.main.cell(c, CFG.row_of_enum)?;
-            let default = self.main.cell(c, CFG.row_of_default)?;
+            let enum_flag = self.main.cell(c, CFG.row_of_enum, true)?;
+            let default = self.main.cell(c, CFG.row_of_default, true)?;
 
             let get_value = |r: usize, idx: usize| -> Result<&str, Error> {
-                let val = self.main.cell(c, r)?;
+                let val = self.main.cell(c, r, true)?;
                 let val = if val.is_empty() { default } else { val };
                 if self.fk_cols.contains(&c) {
-                    Ok(fks
+                    let fkv = fks
                         .newvals
                         .get(&c)
                         .ok_or::<Error>(
@@ -461,9 +461,14 @@ impl<'a> TableCore<'a> for Template<'a> {
                             )
                             .into(),
                         )?
-                        .value(idx)?)
+                        .value(idx)?;
+                    Ok(if fkv.is_empty() { val } else { fkv.as_str() })
                 } else if ty == "enum" {
                     unsafe { self.enums.as_ref().unwrap_unchecked().get_value(ident, val) }
+                } else if tyinfo.is_string() {
+                    let val = self.main.cell(c, r, false)?;
+                    let val = if val.is_empty() { default } else { val };
+                    Ok(val)
                 } else {
                     Ok(val)
                 }
@@ -486,19 +491,20 @@ impl<'a> TableCore<'a> for Template<'a> {
             }
 
             // comments
-            items.push((self.main.cell(c, CFG.row_of_comment)?, ident, ty, c));
+            items.push((self.main.cell(c, CFG.row_of_comment, true)?, ident, ty, c));
             // defaults
             if default.is_empty() || default == "None" {
                 nodefs.insert(ident);
             } else {
                 match defaults.entry(ident) {
                     std::collections::hash_map::Entry::Vacant(e) => {
-                        let val = get_value(CFG.row_of_default, 0)?;
+                        let val = get_value(CFG.row_of_default, 0)
+                            .map_err(|e| format!("In the table {}, {}", self.name, e))?;
 
                         if tyinfo.is_lstring_or_lstringarr() {
                             e.insert((tyinfo.clone(), None));
                         } else {
-                            if tyinfo.contains_str_type() {
+                            if tyinfo.contains_string_or_lstring() {
                                 let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
                                 let value = match crate::parser::parse_assign_with_type(
                                     &value_ty,
@@ -546,9 +552,10 @@ impl<'a> TableCore<'a> for Template<'a> {
             // data rows
             for r in CFG.row_of_start..self.main.row {
                 let pos = (c, r);
-                let val = get_value(r, r - CFG.row_of_start + 1)?;
+                let val = get_value(r, r - CFG.row_of_start + 1)
+                    .map_err(|e| format!("In the table {}, {}", self.name, e))?;
 
-                if tyinfo.contains_str_type() {
+                if tyinfo.contains_string_or_lstring() {
                     let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
                     let value = match crate::parser::parse_assign_with_type(
                         &value_ty,
@@ -644,11 +651,28 @@ unsafe impl Sync for InnerBuildContext<'_> {}
 
 pub struct Enums<'a> {
     base: &'a str,
-    mapping: Vec<(&'a str, HashMap<(*const u8, usize), (*const u8, usize)>)>,
+    mapping: Vec<(&'a str, HashMap<EnumValue, EnumValue>)>,
 }
 
-unsafe impl Send for Enums<'_> {}
-unsafe impl Sync for Enums<'_> {}
+struct EnumValue(*const u8, usize);
+
+impl PartialEq for EnumValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1 == other.1
+    }
+}
+
+impl Eq for EnumValue {}
+
+impl Hash for EnumValue {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let val = unsafe { std::str::from_raw_parts(self.0, self.1) };
+        val.hash(state)
+    }
+}
+
+unsafe impl Send for EnumValue {}
+unsafe impl Sync for EnumValue {}
 
 impl<'a> Enums<'a> {
     pub fn new<'b: 'a>(base: &'b str) -> Self {
@@ -669,12 +693,14 @@ impl<'a> Enums<'a> {
                 let mapping = unsafe { &self.mapping.get_unchecked(idx).1 };
                 unsafe {
                     let meta = mapping
-                        .get(&(key.as_ptr(), key.len()))
-                        .ok_or::<Error>("".into())?;
+                        .get(&EnumValue(key.as_ptr(), key.len()))
+                        .ok_or::<Error>(
+                            format!("can't find enum meta from mapping, key = {}", key).into(),
+                        )?;
                     Ok(std::str::from_raw_parts(meta.0, meta.1))
                 }
             }
-            _ => Err("".into()),
+            _ => Err(format!("Can't find enum mapping for enum `{}`", name).into()),
         }
     }
 
@@ -703,9 +729,12 @@ impl<'a> Enums<'a> {
 
         let mut esmap = HashMap::new();
         for r in 0..sheet.row {
-            let ident = sheet.cell(CFG.col_of_enum_ident, r)?;
-            let desc = sheet.cell(CFG.col_of_enum_desc, r)?;
-            esmap.insert((desc.as_ptr(), desc.len()), (ident.as_ptr(), ident.len()));
+            let ident = sheet.cell(CFG.col_of_enum_ident, r, true)?;
+            let desc = sheet.cell(CFG.col_of_enum_desc, r, true)?;
+            esmap.insert(
+                EnumValue(desc.as_ptr(), desc.len()),
+                EnumValue(ident.as_ptr(), ident.len()),
+            );
         }
         self.mapping.push((name, esmap));
         Ok(())
@@ -736,9 +765,9 @@ impl<'a> Enums<'a> {
         file.write(CFG.line_end_flag.as_bytes())?;
 
         for r in 0..sheet.row {
-            let ident = sheet.cell(CFG.col_of_enum_ident, r)?;
-            let val = sheet.cell(CFG.col_of_enum_val, r)?;
-            let desc = sheet.cell(CFG.col_of_enum_desc, r)?;
+            let ident = sheet.cell(CFG.col_of_enum_ident, r, true)?;
+            let val = sheet.cell(CFG.col_of_enum_val, r, true)?;
+            let desc = sheet.cell(CFG.col_of_enum_desc, r, true)?;
 
             file.write_fmt(format_args!("{}/// <summary>{}", '\t', CFG.line_end_flag))?;
             file.write_fmt(format_args!("{}/// {}{}", '\t', desc, CFG.line_end_flag))?;
