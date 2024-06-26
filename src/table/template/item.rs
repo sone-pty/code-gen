@@ -4,7 +4,7 @@ use crate::{config::CFG, error::Error};
 
 use super::{InnerBuildContext, Template};
 
-pub(crate) fn generate<W: std::io::Write + ?Sized>(
+pub(crate) fn build<W: std::io::Write>(
     template: &Template<'_>,
     stream: &mut W,
     tab_nums: i32,
@@ -19,13 +19,12 @@ pub(crate) fn generate<W: std::io::Write + ?Sized>(
     Ok(())
 }
 
-pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
+pub(crate) fn inner_build_client<W: std::io::Write>(
     template: &Template<'_>,
     stream: &mut W,
     tab_nums: i32,
     ctx: &InnerBuildContext<'_>,
 ) -> Result<(), Error> {
-    println!("enter");
     let end = CFG.line_end_flag;
     #[allow(unused_assignments)]
     let mut count = 0;
@@ -78,7 +77,7 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
         stream.write(end.as_bytes())?;
     }
 
-    // construct_0
+    // construct_0-------------
     format(tab_nums + 1, stream)?;
     stream.write("public ".as_bytes())?;
     stream.write(base_name.as_bytes())?;
@@ -112,8 +111,124 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
     // extra config----------
 
     count = 0;
-    for item in ctx.items.iter() {}
+    for (_, ident, _, col) in ctx.items.iter() {
+        if !ident.is_empty() {
+            format(tab_nums + 2, stream)?;
+            stream.write(ident.as_bytes())?;
 
+            let rows = unsafe { ctx.values.get_unchecked(*col) };
+            if !rows.is_empty() {
+                let info = rows[0].ty_info();
+                if info.is_lstring() {
+                    stream.write_fmt(format_args!(
+                        " = LocalStringManager.GetConfig(\"{}_language\", arg{})",
+                        template.name, count
+                    ))?;
+                } else if info.is_lstring_arr() {
+                    stream.write_fmt(format_args!(
+                        " = LocalStringManager.ConvertConfigList(\"{}_language\", arg{})",
+                        template.name, count
+                    ))?;
+                } else {
+                    stream.write_fmt(format_args!(" = arg{}", count))?;
+                }
+            }
+
+            stream.write(";".as_bytes())?;
+            stream.write(end.as_bytes())?;
+            count += 1;
+        }
+    }
+
+    format(tab_nums + 1, stream)?;
+    stream.write("}".as_bytes())?;
+    stream.write(end.as_bytes())?;
+    stream.write(end.as_bytes())?;
+    format(tab_nums + 1, stream)?;
+    // construct_0-------------
+
+    // construct_1-------------
+    stream.write("public ".as_bytes())?;
+    stream.write(base_name.as_bytes())?;
+    stream.write("()".as_bytes())?;
+    stream.write(end.as_bytes())?;
+
+    format(tab_nums + 1, stream)?;
+    stream.write("{".as_bytes())?;
+    stream.write(end.as_bytes())?;
+
+    count = 0;
+    for (_, ident, _, _) in ctx.items.iter() {
+        format(tab_nums + 2, stream)?;
+        stream.write(ident.as_bytes())?;
+
+        if let Some((info, val)) = ctx.defaults.get(ident) {
+            stream.write(" = ".as_bytes())?;
+
+            if info.is_lstring() {
+                stream.write_fmt(format_args!(
+                    "LocalStringManager.GetConfig(\"{}_language\", default)",
+                    template.name
+                ))?;
+            } else if info.is_lstring_arr() {
+                stream.write_fmt(format_args!(
+                    "LocalStringManager.ConvertConfigList(\"{}_language\", default)",
+                    template.name
+                ))?;
+            } else {
+                unsafe { val.as_ref().unwrap_unchecked().code(stream) }?;
+            }
+            stream.write(";".as_bytes())?;
+        } else {
+            stream.write(" = default;".as_bytes())?;
+        }
+        stream.write(end.as_bytes())?;
+        count += 1;
+    }
+
+    format(tab_nums + 1, stream)?;
+    stream.write("}".as_bytes())?;
+    stream.write(end.as_bytes())?;
+    // construct_1-------------
+
+    // enums
+    for (k, arr) in ctx.enumflags.iter() {
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 1, stream)?;
+        stream.write_fmt(format_args!(
+            "public int Get{}BonusInt(E{}ReferencedType key){}",
+            k, k, end
+        ))?;
+        format(tab_nums + 1, stream)?;
+        stream.write("{".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 2, stream)?;
+        stream.write_fmt(format_args!("switch (key){}", end))?;
+        format(tab_nums + 2, stream)?;
+        stream.write("{".as_bytes())?;
+        stream.write(end.as_bytes())?;
+
+        for v in arr {
+            format(tab_nums + 3, stream)?;
+            stream.write_fmt(format_args!(
+                "case E{}ReferencedType.{}:return {};{}",
+                k, v, v, end
+            ))?;
+        }
+
+        format(tab_nums + 2, stream)?;
+        stream.write("}".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 2, stream)?;
+        stream.write("return 0;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 1, stream)?;
+        stream.write("}".as_bytes())?;
+        stream.write(end.as_bytes())?;
+    }
+
+    format(tab_nums, stream)?;
+    stream.write("}".as_bytes())?;
     Ok(())
 }
 
@@ -123,6 +238,95 @@ pub(crate) fn inner_build_server<W: std::io::Write + ?Sized>(
     tab_nums: i32,
     ctx: &InnerBuildContext<'_>,
 ) -> Result<(), Error> {
+    let end = CFG.line_end_flag;
+    #[allow(unused_assignments)]
+    let base_name = format!("{}Item", template.name);
+    let comment = |content: &str, stream: &mut W| -> Result<(), Error> {
+        format(tab_nums + 1, stream)?;
+        stream.write("/// <summary>".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 1, stream)?;
+        stream.write("/// ".as_bytes())?;
+        stream.write(content.as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 1, stream)?;
+        stream.write("/// </summary>".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        Ok(())
+    };
+
+    format(tab_nums, stream)?;
+    stream.write("[Serializable]".as_bytes())?;
+    stream.write(end.as_bytes())?;
+    format(tab_nums, stream)?;
+    stream.write("public class ".as_bytes())?;
+    stream.write(base_name.as_bytes())?;
+    stream.write(end.as_bytes())?;
+    format(tab_nums, stream)?;
+    stream.write("{".as_bytes())?;
+    stream.write(end.as_bytes())?;
+
+    for item in ctx.items.iter() {
+        if !item.0.is_empty() {
+            comment(item.0, stream)?;
+        }
+
+        format(tab_nums + 1, stream)?;
+        stream.write("public readonly ".as_bytes())?;
+        let mut s = item.2.to_string();
+        convert_type(&mut s);
+
+        if s == "enum" {
+            stream.write_fmt(format_args!("E{}{}", template.name, item.1))?;
+        } else {
+            stream.write(replace_lstring(&s).as_bytes())?;
+        }
+
+        stream.write(" ".as_bytes())?;
+        stream.write(item.1.as_bytes())?;
+        stream.write(";".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        stream.write(end.as_bytes())?;
+    }
+
+    // enums
+    for (k, arr) in ctx.enumflags.iter() {
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 1, stream)?;
+        stream.write_fmt(format_args!(
+            "public int Get{}BonusInt(E{}ReferencedType key){}",
+            k, k, end
+        ))?;
+        format(tab_nums + 1, stream)?;
+        stream.write("{".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 2, stream)?;
+        stream.write_fmt(format_args!("switch (key){}", end))?;
+        format(tab_nums + 2, stream)?;
+        stream.write("{".as_bytes())?;
+        stream.write(end.as_bytes())?;
+
+        for v in arr {
+            format(tab_nums + 3, stream)?;
+            stream.write_fmt(format_args!(
+                "case E{}ReferencedType.{}:return {};{}",
+                k, v, v, end
+            ))?;
+        }
+
+        format(tab_nums + 2, stream)?;
+        stream.write("}".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 2, stream)?;
+        stream.write("return 0;".as_bytes())?;
+        stream.write(end.as_bytes())?;
+        format(tab_nums + 1, stream)?;
+        stream.write("}".as_bytes())?;
+        stream.write(end.as_bytes())?;
+    }
+
+    format(tab_nums, stream)?;
+    stream.write("}".as_bytes())?;
     Ok(())
 }
 

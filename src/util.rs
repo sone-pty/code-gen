@@ -6,12 +6,20 @@ use std::{
 
 use xlsx_read::excel_file::ExcelFile;
 
-use crate::{error::Error, preconfig::PRECONFIG, table::TableEntity};
+use crate::{config::CFG, error::Error, preconfig::PRECONFIG, table::TableEntity};
 
 #[inline]
 pub fn format<W: std::io::Write + ?Sized>(tab_nums: i32, stream: &mut W) -> Result<(), Error> {
     for _ in 0..tab_nums {
-        stream.write("    ".as_bytes())?;
+        stream.write(CFG.align_str.as_bytes())?;
+    }
+    Ok(())
+}
+
+#[inline]
+pub fn format_fmt(tab_nums: i32, stream: &mut dyn std::fmt::Write) -> Result<(), Error> {
+    for _ in 0..tab_nums {
+        let _ = stream.write_str(&CFG.align_str);
     }
     Ok(())
 }

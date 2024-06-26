@@ -2,6 +2,7 @@
 #![feature(downcast_unchecked)]
 #![feature(cell_update)]
 #![feature(str_from_raw_parts)]
+#![feature(extend_one)]
 
 use std::{
     collections::HashSet,
@@ -32,7 +33,7 @@ mod types;
 mod util;
 
 pub static THREADS: LazyLock<rayon::ThreadPool> = LazyLock::new(|| {
-    let cpu_threads = match std::thread::available_parallelism() {
+    let available_parallelism = match std::thread::available_parallelism() {
         Ok(num) => num.get(),
         Err(e) => {
             eprintln!(
@@ -42,9 +43,9 @@ pub static THREADS: LazyLock<rayon::ThreadPool> = LazyLock::new(|| {
             32
         }
     };
-    println!("use {} threads", cpu_threads);
+    println!("use {} threads", available_parallelism);
     rayon::ThreadPoolBuilder::new()
-        .num_threads(cpu_threads)
+        .num_threads(available_parallelism)
         .build()
         .unwrap()
 });

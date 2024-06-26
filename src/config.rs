@@ -26,6 +26,7 @@ pub struct Config {
     pub file_banner: &'static str,
     pub language_xlsx_name: &'static str,
     pub ref_start_num: i32,
+    pub align_str: &'static str,
 }
 
 impl Config {
@@ -61,6 +62,7 @@ impl Config {
             file_banner: config.attribute("file_banner")?.as_str()?,
             language_xlsx_name: config.attribute("language_xlsx_name")?.as_str()?,
             ref_start_num: config.attribute("ref_start_num")?.as_i32()?,
+            align_str: config.attribute("align_str")?.as_str()?,
         })
     }
 }

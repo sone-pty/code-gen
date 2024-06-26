@@ -17,6 +17,7 @@ use crate::{
     error::Error,
     types::{TypeInfo, Value},
     util::{self, conv_col_idx},
+    THREADS,
 };
 
 use super::{BuildContext, Sheet, Table, TableCore, VectorView};
@@ -30,6 +31,7 @@ pub struct Template<'a> {
     main: Sheet<'a>,
     fk_cols: Vec<usize>,
     extras: Vec<(&'a str, &'a str)>,
+    raw_refs: HashMap<String, i32>,
 }
 
 impl<'a> Template<'a> {
@@ -62,6 +64,7 @@ impl<'a> Template<'a> {
         };
 
         let (mut refs, mut max_ref_num, mut ref_file) = Self::load_refs(name)?;
+        let raw_refs = refs.clone();
         let init = max_ref_num == CFG.ref_start_num - 1;
 
         // extra None ref value
@@ -144,6 +147,7 @@ impl<'a> Template<'a> {
             name: name.into(),
             fk_cols: vec![],
             extras: extra_sheets,
+            raw_refs,
         })
     }
 
@@ -303,9 +307,11 @@ impl<'a> Template<'a> {
         }
 
         // extra language entrys
-        writeln!(file, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")?;
-        for (v1, v2) in self.extras.iter() {
-            writeln!(file, "{}={}", v1, v2)?;
+        if !self.extras.is_empty() {
+            writeln!(file, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")?;
+            for (v1, v2) in self.extras.iter() {
+                writeln!(file, "{}={}", v1, v2)?;
+            }
         }
 
         file.flush()?;
@@ -315,7 +321,7 @@ impl<'a> Template<'a> {
     fn inner_build(&self, ctx: &InnerBuildContext<'_>, is_server: bool) -> Result<(), Error> {
         let mut stream = File::create(format!(
             "{}/{}.{}",
-            if is_server {
+            if !is_server {
                 unsafe { OUTPUT_SCRIPT_CODE_DIR }
             } else {
                 unsafe { OUTPUT_SERVER_SCRIPT_CODE_DIR }
@@ -351,9 +357,10 @@ impl<'a> Template<'a> {
         stream.write(end.as_bytes())?;
 
         // item
-        item::generate(self, &mut stream, 1, ctx, is_server)?;
+        item::build(self, &mut stream, 1, ctx, is_server)?;
         stream.write(end.as_bytes())?;
-        base::generate(self, &mut stream, 1, ctx, is_server)?;
+        // base
+        base::build(self, &mut stream, 1, ctx, is_server)?;
         stream.write(end.as_bytes())?;
         stream.write("}".as_bytes())?;
         stream.flush()?;
@@ -394,7 +401,7 @@ impl<'a> TableCore<'a> for Template<'a> {
             } else if ident.is_empty() {
                 skip_cols.push(c);
             } else {
-                required.push(ident);
+                required.push((c, ident));
             }
         }
 
@@ -422,7 +429,7 @@ impl<'a> TableCore<'a> for Template<'a> {
         for _ in 0..self.main.col {
             values.push(Vec::new());
         }
-        for c in (1..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
+        for c in (0..self.main.col).filter(|v| !skip_cols.as_slice().contains(v)) {
             let mut rows = Vec::with_capacity(self.main.row - CFG.row_of_start + 1);
             let ident = self.main.cell(c, CFG.row_of_ident)?;
             let ty = self.main.cell(c, CFG.row_of_type)?;
@@ -565,7 +572,7 @@ impl<'a> TableCore<'a> for Template<'a> {
                 } else {
                     let value = match crate::parser::parse_assign_with_type(
                         &value_ty,
-                        val,
+                        if c == 0 { "0" } else { val },
                         Some(&ls_map),
                         emptys.get(&pos),
                     ) {
@@ -589,7 +596,6 @@ impl<'a> TableCore<'a> for Template<'a> {
 
         // build
         let inner_ctx = InnerBuildContext {
-            skip_cols,
             values: values.as_ref(),
             nodefs,
             defaults,
@@ -597,9 +603,15 @@ impl<'a> TableCore<'a> for Template<'a> {
             items,
             enumflags,
             keytypes,
+            required,
         };
-        self.inner_build(&inner_ctx, false)?;
-        self.inner_build(&inner_ctx, true)?;
+
+        let (r1, r2) = rayon::join(
+            || THREADS.install(|| self.inner_build(&inner_ctx, false)),
+            || THREADS.install(|| self.inner_build(&inner_ctx, true)),
+        );
+        r1?;
+        r2?;
         Ok(())
     }
 
@@ -617,7 +629,6 @@ impl<'a> TableCore<'a> for Template<'a> {
 }
 
 pub(crate) struct InnerBuildContext<'a> {
-    pub(crate) skip_cols: Vec<usize>,
     pub(crate) values: &'a [Vec<Box<dyn Value>>],
     pub(crate) nodefs: HashSet<&'a str>,
     pub(crate) defaults: HashMap<&'a str, (TypeInfo, Option<Box<dyn Value>>)>,
@@ -625,12 +636,19 @@ pub(crate) struct InnerBuildContext<'a> {
     pub(crate) items: Vec<(&'a str, &'a str, &'a str, usize)>,
     pub(crate) enumflags: HashMap<&'a str, Vec<&'a str>>,
     pub(crate) keytypes: Option<Vec<(&'a str, usize, &'a str)>>,
+    pub(crate) required: Vec<(usize, &'a str)>,
 }
+
+unsafe impl Send for InnerBuildContext<'_> {}
+unsafe impl Sync for InnerBuildContext<'_> {}
 
 pub struct Enums<'a> {
     base: &'a str,
     mapping: Vec<(&'a str, HashMap<(*const u8, usize), (*const u8, usize)>)>,
 }
+
+unsafe impl Send for Enums<'_> {}
+unsafe impl Sync for Enums<'_> {}
 
 impl<'a> Enums<'a> {
     pub fn new<'b: 'a>(base: &'b str) -> Self {
