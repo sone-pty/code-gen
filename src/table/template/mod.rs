@@ -382,7 +382,12 @@ impl<'a> TableCore<'a> for Template<'a> {
 
     fn build<'b: 'a>(&mut self, ctx: &'b BuildContext) -> Result<(), Error> {
         // transfer fk values
-        let fks = self.build_fk_values(&ctx)?;
+        let fks = match self.build_fk_values(&ctx) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(format!("In table {}, build fk values failed: {}", self.name, e).into())
+            }
+        };
         // transfer lstrings
         let (ls_map, emptys) = self.build_lstring_values()?;
         let mut defkey = CFG.cell_of_defkey.0;
@@ -512,7 +517,18 @@ impl<'a> TableCore<'a> for Template<'a> {
                             e.insert((tyinfo.clone(), None));
                         } else {
                             if tyinfo.contains_string_or_lstring() {
-                                let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
+                                let tval = match crate::parser::transfer_str_value(val, &tyinfo) {
+                                    Ok(v) => v,
+                                    Err(e) => return Err(format!(
+                                            "In table {}, the Cell.({}, {}) transfer str value failed: {}, val = `{}`",
+                                            self.name,
+                                            CFG.row_of_default + 1,
+                                            conv_col_idx(c + 1),
+                                            e,
+                                            val,
+                                        )
+                                        .into()),
+                                };
                                 let value = match crate::parser::parse_assign_with_type(
                                     &value_ty,
                                     tval.as_str(),
@@ -563,7 +579,20 @@ impl<'a> TableCore<'a> for Template<'a> {
                     .map_err(|e| format!("In the table {}, {}", self.name, e))?;
 
                 if tyinfo.contains_string_or_lstring() {
-                    let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
+                    let tval = match crate::parser::transfer_str_value(val, &tyinfo) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(format!(
+                                "In table {}, the Cell.({}, {}) transfer str value failed: {}, val = `{}`",
+                                self.name,
+                                r + 1,
+                                conv_col_idx(c + 1),
+                                e,
+                                val,
+                            )
+                            .into())
+                        }
+                    };
                     let value = match crate::parser::parse_assign_with_type(
                         &value_ty,
                         &tval,
@@ -944,9 +973,9 @@ impl<'a> FKValue<'a> {
         value: &str,
         output: &mut String,
     ) -> Result<(), Error> {
-        let patterns = util::split(pattern);
+        let patterns = util::split(pattern)?;
         let plen = patterns.len();
-        let vals = util::split(value);
+        let vals = util::split(value)?;
         if plen == 0 {
             return Ok(());
         }
@@ -1010,9 +1039,9 @@ impl<'a> FKValue<'a> {
         value: &str,
         output: &mut String,
     ) -> Result<(), Error> {
-        let patterns = util::split(pattern);
+        let patterns = util::split(pattern)?;
         let plen = patterns.len();
-        let vals = util::split(value);
+        let vals = util::split(value)?;
         if plen == 0 {
             return Ok(());
         }

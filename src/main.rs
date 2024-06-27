@@ -292,17 +292,6 @@ fn generate() {
 
 #[test]
 fn test_split() {
-    let val = parser::parse_value("{{-1},{-1},{-1},{-1},{-1},{-1},{-1}}", 0, 0).unwrap();
-    match val.as_ref() {
-        lex::states::nodes::values::p0(_) => {
-            println!("literal");
-        }
-        lex::states::nodes::values::p1(_) => {
-            println!("arr");
-        }
-        lex::states::nodes::values::p2(_) => {
-            println!("ident");
-        }
-        lex::states::nodes::values::p3(_) => todo!(),
-    }
+    let val = "{hairup_double_l_front,hair/female_double_hairup_22,{hairup_double_r_front,hair/female_double_hairup_22}";
+    println!("{:?}", util::split(val));
 }

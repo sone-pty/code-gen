@@ -113,7 +113,20 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
                 let tyinfo = crate::parser::get_value_type(&value_ty)?;
 
                 if tyinfo.contains_string_or_lstring() {
-                    let tval = crate::parser::transfer_str_value(val, &tyinfo)?;
+                    let tval = match crate::parser::transfer_str_value(val, &tyinfo) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            return Err(format!(
+                                "In table {}, the Cell.({}, {}) transfer str value failed: {}, val = `{}`",
+                                self.name,
+                                idx + 2,
+                                conv_col_idx(3),
+                                e,
+                                val,
+                            )
+                            .into())
+                        }
+                    };
                     let value =
                         match crate::parser::parse_assign_with_type(&value_ty, &tval, None, None) {
                             Ok(e) => e,

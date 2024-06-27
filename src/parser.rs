@@ -1040,7 +1040,7 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
             }
 
             ret.push('{');
-            for s in util::split(val) {
+            for s in util::split(val)? {
                 ret.push_str(transfer_str_value(s, v)?.as_str());
                 ret.push(',');
             }
@@ -1051,7 +1051,7 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
             }
 
             ret.push('{');
-            let subvals = util::split(val);
+            let subvals = util::split(val)?;
             if subvals.len() != v.len() {
                 return Err("The subvals of Tuple are not match with generic type".into());
             }

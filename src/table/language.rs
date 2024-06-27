@@ -99,7 +99,7 @@ impl<'a> TableCore<'a> for Languages<'a> {
         }
         writeln!(file, "    }};")?;
         writeln!(file, "}}")?;
-        
+
         file.flush()?;
         langfile.flush()?;
         Ok(())

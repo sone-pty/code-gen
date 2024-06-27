@@ -105,19 +105,17 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
                 };
                 enums.push(((&v[2..]).into(), sheet));
             }
-            v if name == "LString" => {
-                match entity {
-                    TableEntity::Language(ref mut langs) => {
-                        langs.push((v.into(), sheet));
-                    },
-                    TableEntity::Invalid => {
-                        entity = TableEntity::new_language((v.into(), sheet));
-                    },
-                    _ => {
-                        return Err("Expected Language type entity".into());
-                    }
+            v if name == "LString" => match entity {
+                TableEntity::Language(ref mut langs) => {
+                    langs.push((v.into(), sheet));
                 }
-            }
+                TableEntity::Invalid => {
+                    entity = TableEntity::new_language((v.into(), sheet));
+                }
+                _ => {
+                    return Err("Expected Language type entity".into());
+                }
+            },
             v => {
                 let TableEntity::Template(_, _, _, ref mut extras) = entity else {
                     return Err("Expected Template type entity".into());
@@ -133,7 +131,7 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
     Ok(entity)
 }
 
-pub fn split(pat: &str) -> Vec<&str> {
+pub fn split(pat: &str) -> Result<Vec<&str>, Error> {
     let pat_trim = pat.trim();
     let mut ret = Vec::new();
 
@@ -160,7 +158,10 @@ pub fn split(pat: &str) -> Vec<&str> {
                             ret.push("");
                         }
                     } else {
-                        let _ = brackets.pop();
+                        let top = brackets.pop()?;
+                        if top != '{' {
+                            return Err("Invalid value to split".into());
+                        }
                     }
                 }
                 ',' => {
@@ -173,8 +174,12 @@ pub fn split(pat: &str) -> Vec<&str> {
             }
             idx += v.len_utf8();
         }
+
+        if !brackets.is_empty() {
+            return Err("Invalid value to split".into());
+        }
     }
-    ret
+    Ok(ret)
 }
 
 struct Node<T> {
