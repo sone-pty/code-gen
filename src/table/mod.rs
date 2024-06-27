@@ -8,30 +8,25 @@ use crate::{
 use ansi_term::Colour::Red;
 use dashmap::DashMap;
 use global_config::GlobalConfig;
+use language::Languages;
 use std::{collections::HashMap, io::Write, sync::Arc};
 use template::{Enums, Template};
 use xlsx_read::excel_table::ExcelTable;
 
 mod global_config;
+mod language;
 mod template;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-pub enum TableTy {
+pub enum TableEntity {
     Invalid,
-    Template,
-    GlobalConfig,
-    Language,
-}
-
-#[derive(Default)]
-pub struct TableEntity {
-    pub template: Option<ExcelTable>,
-    pub global: Option<ExcelTable>,
-    pub enums: Vec<(String, ExcelTable)>,
-    pub extras: Vec<(String, ExcelTable)>,
-    pub langs: Vec<(String, ExcelTable)>,
-    pub name: String,
+    Template(
+        String,
+        Option<ExcelTable>,
+        Vec<(String, ExcelTable)>,
+        Vec<(String, ExcelTable)>,
+    ), // (name, template, enums, extras)
+    GlobalConfig(String, Option<ExcelTable>),
+    Language(Vec<(String, ExcelTable)>),
 }
 
 unsafe impl Send for TableEntity {}
@@ -42,23 +37,51 @@ impl TableEntity {
         Table::load(self, ctx)
     }
 
-    pub fn ty(&self) -> TableTy {
-        if self.template.is_some() {
-            return TableTy::Template;
-        } else if self.global.is_some() {
-            return TableTy::GlobalConfig;
-        } else if !self.langs.is_empty() {
-            return TableTy::Language;
+    pub fn new_template(name: &str) -> Self {
+        TableEntity::Template(name.into(), None, Vec::new(), Vec::new())
+    }
+
+    pub fn new_global(name: &str) -> Self {
+        TableEntity::GlobalConfig(name.into(), None)
+    }
+
+    pub fn new_language(first: (String, ExcelTable)) -> Self {
+        let mut data = Vec::new();
+        data.push(first);
+        TableEntity::Language(data)
+    }
+
+    #[inline]
+    fn is_language(&self) -> bool {
+        match self {
+            TableEntity::Language(_) => true,
+            _ => false,
         }
-        TableTy::Invalid
+    }
+
+    #[inline]
+    fn is_valid(&self) -> bool {
+        match self {
+            TableEntity::Invalid => true,
+            _ => false,
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            TableEntity::Template(v, _, _, _) => &v,
+            TableEntity::GlobalConfig(v, _) => &v,
+            _ => "",
+        }
     }
 }
 
-pub struct Generator {
+pub struct Generator<'a> {
     pub entities: Vec<TableEntity>,
+    pub loption: &'a str,
 }
 
-impl Generator {
+impl Generator<'_> {
     pub fn build(self) -> Result<(), Error> {
         // generate ConfigCollection.cs
         let mut file = std::fs::File::options()
@@ -94,7 +117,12 @@ namespace Config
         file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"))?;
         file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"))?;
 
-        for name in self.entities.iter().map(|v| v.name.as_str()) {
+        for name in self
+            .entities
+            .iter()
+            .filter(|v| v.is_valid() && !v.is_language())
+            .map(|v| v.name())
+        {
             file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
         }
 
@@ -129,7 +157,12 @@ namespace Config
             "LocalMonasticTitles", "LocalMonasticTitles"
         ))?;
 
-        for name in self.entities.iter().map(|v| v.name.as_str()) {
+        for name in self
+            .entities
+            .iter()
+            .filter(|v| v.is_valid() && !v.is_language())
+            .map(|v| v.name())
+        {
             file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
         }
         file.write("\n\t\t".as_bytes())?;
@@ -142,7 +175,10 @@ namespace Config
         file.flush()?;
 
         // loading tables
-        let ctx = std::sync::Arc::new(BuildContext::default());
+        let ctx = std::sync::Arc::new(BuildContext {
+            loption: self.loption,
+            ..Default::default()
+        });
         let mut views = vec![];
         rayon::join(
             || println!("Loading tables..."),
@@ -178,8 +214,9 @@ namespace Config
 }
 
 #[derive(Default)]
-pub struct BuildContext {
-    refs: DashMap<String, (HashMap<String, i32>, i32)>,
+pub struct BuildContext<'a> {
+    pub(crate) refs: DashMap<String, (HashMap<String, i32>, i32)>,
+    pub(crate) loption: &'a str,
 }
 
 #[allow(dead_code)]
@@ -187,13 +224,26 @@ pub trait TableCore<'a> {
     fn name(&self) -> &str;
     fn build<'b: 'a>(&mut self, ctx: &'b BuildContext) -> Result<(), Error>;
     fn load<'b: 'a>(
-        table: &'b ExcelTable,
-        name: &'b str,
-        extras: &'b [(String, ExcelTable)],
-        ctx: Arc<BuildContext>,
+        _: &'b ExcelTable,
+        _: &'b str,
+        _: &'b [(String, ExcelTable)],
+        _: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        unimplemented!()
+    }
+    fn load_language<'b: 'a>(
+        _: &'b [(String, ExcelTable)],
+        _: &'b str,
+        _: Arc<BuildContext>,
+    ) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        unimplemented!()
+    }
 }
 
 pub struct Table<'a> {
@@ -207,19 +257,22 @@ impl<'a> Table<'a> {
         table: &'b TableEntity,
         ctx: std::sync::Arc<BuildContext>,
     ) -> Result<Self, Error> {
+        #[allow(unused_assignments)]
         let mut core: Option<Box<dyn TableCore>> = None;
-        match table.ty() {
-            TableTy::Template => {
+
+        match table {
+            TableEntity::Invalid => return Err("Invalid TableEntity".into()),
+            TableEntity::Template(name, template, menums, extras) => {
                 let mut template = Template::load(
-                    unsafe { table.template.as_ref().unwrap_unchecked() },
-                    &table.name,
-                    table.extras.as_slice(),
+                    unsafe { template.as_ref().unwrap_unchecked() },
+                    &name,
+                    extras.as_slice(),
                     ctx.clone(),
                 )?;
 
-                if !table.enums.is_empty() {
-                    let mut enums = Enums::new(table.name.as_str());
-                    for (name, sheet) in table.enums.iter() {
+                if !menums.is_empty() {
+                    let mut enums = Enums::new(name.as_str());
+                    for (name, sheet) in menums.iter() {
                         enums.load_enum(sheet, name.as_str())?;
                     }
                     enums.establish();
@@ -227,16 +280,21 @@ impl<'a> Table<'a> {
                 }
                 core = Some(Box::new(template) as _);
             }
-            TableTy::GlobalConfig => {
+            TableEntity::GlobalConfig(name, global) => {
                 core = Some(Box::new(GlobalConfig::load(
-                    unsafe { table.global.as_ref().unwrap_unchecked() },
-                    &table.name,
+                    unsafe { global.as_ref().unwrap_unchecked() },
+                    &name,
                     &[],
                     ctx.clone(),
                 )?));
             }
-            TableTy::Language => todo!(),
-            TableTy::Invalid => {}
+            TableEntity::Language(langs) => {
+                core = Some(Box::new(Languages::load_language(
+                    langs.as_slice(),
+                    "",
+                    ctx.clone(),
+                )?));
+            }
         }
         Ok(Self { core })
     }
@@ -270,6 +328,30 @@ pub struct Sheet<'a> {
 
 #[allow(dead_code)]
 impl<'a> Sheet<'a> {
+    pub fn load<'b: 'a>(table: &'b ExcelTable) -> Result<Self, Error> {
+        let row = table.height();
+        let col = table.width();
+
+        // build row data
+        let data = unsafe {
+            let mut raw = Box::<[VectorView<&str>]>::new_uninit_slice(row);
+            for r in 0..row {
+                let mut row_data = Box::<[&str]>::new_uninit_slice(col);
+                for c in 0..col {
+                    row_data[c]
+                        .as_mut_ptr()
+                        .write(table.cell_content(c, r).unwrap_or(""));
+                }
+                raw[r]
+                    .as_mut_ptr()
+                    .write(VectorView(row_data.assume_init()));
+            }
+            raw.assume_init()
+        };
+
+        Ok(Sheet { col, row, data })
+    }
+
     pub fn ty(&self, col: usize, row: usize) -> Result<Box<value_type>, Error> {
         if col < self.col && row < self.row {
             crate::parser::parse_type(self.data[row - CFG.row_of_start].value(col)?, 0, 0)

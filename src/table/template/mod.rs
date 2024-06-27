@@ -819,7 +819,7 @@ impl<'a> Enums<'a> {
                 for c in 0..col {
                     row_data[c]
                         .as_mut_ptr()
-                        .write(table.cell_content(c, r).unwrap_or("").trim().into());
+                        .write(table.cell_content(c, r).unwrap_or("").trim());
                 }
                 raw[r]
                     .as_mut_ptr()

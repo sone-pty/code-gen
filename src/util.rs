@@ -80,28 +80,51 @@ pub fn conv_col_idx(mut n: usize) -> String {
 pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEntity, Error> {
     let mut excel = ExcelFile::load_from_path(path)?;
     let sheets = excel.parse_workbook()?;
-    let mut entity = TableEntity::default();
-    entity.name = name.into();
+    let mut entity = TableEntity::Invalid;
 
     for (flag, id) in sheets.into_iter() {
         let sheet = excel.parse_sheet(id)?;
         match flag.as_str() {
             "Template" => {
-                entity.template = Some(sheet);
+                entity = TableEntity::new_template(name);
+                let TableEntity::Template(_, ref mut v, _, _) = entity else {
+                    return Err("Expected Template type entity".into());
+                };
+                v.replace(sheet);
             }
             "GlobalConfig" => {
-                entity.global = Some(sheet);
+                entity = TableEntity::new_global(name);
+                let TableEntity::GlobalConfig(_, ref mut v) = entity else {
+                    return Err("Expected GlobalConfig type entity".into());
+                };
+                v.replace(sheet);
             }
             v if v.starts_with("t_") => {
-                entity.enums.push(((&v[2..]).into(), sheet));
+                let TableEntity::Template(_, _, ref mut enums, _) = entity else {
+                    return Err("Expected Template type entity".into());
+                };
+                enums.push(((&v[2..]).into(), sheet));
             }
             v if name == "LString" => {
-                entity.langs.push((v.into(), sheet));
+                match entity {
+                    TableEntity::Language(ref mut langs) => {
+                        langs.push((v.into(), sheet));
+                    },
+                    TableEntity::Invalid => {
+                        entity = TableEntity::new_language((v.into(), sheet));
+                    },
+                    _ => {
+                        return Err("Expected Language type entity".into());
+                    }
+                }
             }
             v => {
+                let TableEntity::Template(_, _, _, ref mut extras) = entity else {
+                    return Err("Expected Template type entity".into());
+                };
                 if let Some(preconfig) = PRECONFIG.get(name) {
                     if preconfig.exist(v) {
-                        entity.extras.push((v.into(), sheet));
+                        extras.push((v.into(), sheet));
                     }
                 }
             }
