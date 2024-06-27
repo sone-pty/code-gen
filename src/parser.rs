@@ -284,33 +284,40 @@ fn get_value(
 
 trait ConstValue<T> {
     const MIN: T;
+    const MAX: T;
 }
 
 impl ConstValue<i16> for i16 {
     const MIN: i16 = i16::MIN;
+    const MAX: i16 = i16::MAX;
 }
 
 impl ConstValue<i32> for i32 {
     const MIN: i32 = i32::MIN;
+    const MAX: i32 = i32::MAX;
 }
 
 impl ConstValue<i64> for i64 {
     const MIN: i64 = i64::MIN;
+    const MAX: i64 = i64::MAX;
 }
 
 impl ConstValue<i8> for i8 {
     const MIN: i8 = i8::MIN;
+    const MAX: i8 = i8::MAX;
 }
 
 impl ConstValue<f32> for f32 {
     const MIN: f32 = f32::MIN;
+    const MAX: f32 = f32::MAX;
 }
 
 impl ConstValue<f64> for f64 {
     const MIN: f64 = f64::MIN;
+    const MAX: f64 = f64::MAX;
 }
 
-fn get_integer_value<T: FromStr + Neg<Output = T> + ConstValue<T>>(
+fn get_number_value<T: FromStr + Neg<Output = T> + ConstValue<T>>(
     val: &Box<integer_literal>,
 ) -> Result<T, error::Error> {
     match val.as_ref() {
@@ -329,11 +336,11 @@ fn get_integer_value<T: FromStr + Neg<Output = T> + ConstValue<T>>(
                 .ok_or::<error::Error>("".into())?;
             if minus {
                 Ok(-v.0.content.parse::<T>().map_err::<error::Error, _>(|_| {
-                    format!("parse integer value failed: `{}`", v.as_ref().0.content).into()
+                    format!("parse number value failed: `-{}`", v.as_ref().0.content).into()
                 })?)
             } else {
                 Ok(v.0.content.parse::<T>().map_err::<error::Error, _>(|_| {
-                    format!("parse integer value failed: `{}`", v.as_ref().0.content).into()
+                    format!("parse number value failed: `{}`", v.as_ref().0.content).into()
                 })?)
             }
         }
@@ -530,7 +537,7 @@ fn parse_bool_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
             }
         },
         literal_vals::p1(v) => {
-            let val = get_integer_value::<i32>(v)?;
+            let val = get_number_value::<i32>(v)?;
             if val > 0 {
                 Ok(Box::new(Bool { ty, val: true }) as _)
             } else {
@@ -562,7 +569,7 @@ fn parse_short_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
         return Err("expected integer_vals when parsing short value".into());
     };
 
-    let val = get_integer_value(integer_vals)?;
+    let val = get_number_value(integer_vals)?;
     Ok(Box::new(Short { ty, val }) as _)
 }
 
@@ -600,7 +607,7 @@ fn parse_sbyte_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
         return Err("expected integer vals when parse sbyte value".into());
     };
 
-    let val = get_integer_value(integer_vals)?;
+    let val = get_number_value(integer_vals)?;
     Ok(Box::new(SByte { ty, val }) as _)
 }
 
@@ -963,7 +970,7 @@ fn parse_int_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, e
         return Err("expected integer vals when parse int value".into());
     };
 
-    let val = get_integer_value(integer_vals)?;
+    let val = get_number_value(integer_vals)?;
     Ok(Box::new(Int { ty, val }) as _)
 }
 
@@ -973,7 +980,7 @@ fn parse_float_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>,
     };
 
     let val = match literal_vals.as_ref() {
-        literal_vals::p1(integer_vals) => get_integer_value(integer_vals)?,
+        literal_vals::p1(integer_vals) => get_number_value(integer_vals)?,
         literal_vals::p2(float_vals) => match float_vals.as_ref() {
             states::nodes::float_literal::p0(v) => v.as_ref().0.content.parse()?,
             states::nodes::float_literal::p1(v, _) => v.as_ref().0.content.parse()?,
@@ -998,7 +1005,7 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
     };
 
     let val = match literal_vals.as_ref() {
-        literal_vals::p1(integer_vals) => get_integer_value(integer_vals)?,
+        literal_vals::p1(integer_vals) => get_number_value(integer_vals)?,
         literal_vals::p2(float_vals) => match float_vals.as_ref() {
             states::nodes::float_literal::p0(v) => v.as_ref().0.content.parse()?,
             states::nodes::float_literal::p1(v, _) => v.as_ref().0.content.parse()?,

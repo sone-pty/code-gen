@@ -89,7 +89,6 @@ pub static TABLE_XLSX_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(||
     ret.insert("NameCore_CN.xlsx");
     ret.insert("DeadCharacter.xlsx");
     ret.insert("InscribedCharacter.xlsx");
-    ret.insert("LString.xlsx");
     ret.insert("Shell");
     ret.insert("CustomExportConfig");
     ret

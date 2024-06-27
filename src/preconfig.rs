@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PreConfigData {
     pub extra_lang_sheets: Vec<String>,
     pub ctor_begin: String,
@@ -20,7 +20,7 @@ impl PreConfigData {
 
     pub fn exist(&self, name: &str) -> bool {
         for v in self.extra_lang_sheets.iter() {
-            if *v == *name {
+            if v.as_str() == name {
                 return true;
             }
         }

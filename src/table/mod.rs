@@ -30,6 +30,7 @@ pub struct TableEntity {
     pub global: Option<ExcelTable>,
     pub enums: Vec<(String, ExcelTable)>,
     pub extras: Vec<(String, ExcelTable)>,
+    pub langs: Vec<(String, ExcelTable)>,
     pub name: String,
 }
 
@@ -44,9 +45,10 @@ impl TableEntity {
     pub fn ty(&self) -> TableTy {
         if self.template.is_some() {
             return TableTy::Template;
-        }
-        if self.global.is_some() {
+        } else if self.global.is_some() {
             return TableTy::GlobalConfig;
+        } else if !self.langs.is_empty() {
+            return TableTy::Language;
         }
         TableTy::Invalid
     }
@@ -154,7 +156,7 @@ namespace Config
 
         // generate
         rayon::join(
-            || {},
+            || println!("Building codes..."),
             || {
                 views.into_iter().for_each(|v| {
                     THREADS.install(|| match v {

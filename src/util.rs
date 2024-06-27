@@ -84,21 +84,24 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
     entity.name = name.into();
 
     for (flag, id) in sheets.into_iter() {
-        let table = excel.parse_sheet(id)?;
+        let sheet = excel.parse_sheet(id)?;
         match flag.as_str() {
             "Template" => {
-                entity.template = Some(table);
+                entity.template = Some(sheet);
             }
             "GlobalConfig" => {
-                entity.global = Some(table);
+                entity.global = Some(sheet);
             }
             v if v.starts_with("t_") => {
-                entity.enums.push(((&v[2..]).into(), table));
+                entity.enums.push(((&v[2..]).into(), sheet));
+            }
+            v if name == "LString" => {
+                entity.langs.push((v.into(), sheet));
             }
             v => {
-                if let Some(preconfig) = PRECONFIG.get(v) {
+                if let Some(preconfig) = PRECONFIG.get(name) {
                     if preconfig.exist(v) {
-                        entity.extras.push((v.into(), table));
+                        entity.extras.push((v.into(), sheet));
                     }
                 }
             }

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::{Debug, Display},
     fs::File,
     hash::Hash,
     io::{BufReader, Write},
@@ -45,7 +46,7 @@ impl<'a> Template<'a> {
         let row = Table::get_sheet_height(table)?;
         let col = table.width();
         let mut table_refs_set = HashSet::new();
-        let mut extra_sheets = vec![];
+        let mut extra_sheets = Vec::new();
 
         // build row data
         let data = unsafe {
@@ -215,6 +216,12 @@ impl<'a> Template<'a> {
         let mut seed = 0i32;
         let mut ls_map = HashMap::new();
         let mut emptys: HashMap<(usize, usize), Vec<i32>> = HashMap::new();
+        if !(0..self.main.col)
+            .map(|v| self.main.cell(v, CFG.row_of_type, true))
+            .any(|v| v.is_ok_and(|v| v.contains("LString") || v.contains("Lstring")))
+        {
+            return Ok((ls_map, emptys));
+        }
         let mut path = std::path::Path::new(unsafe { LANG_OUTPUT_DIR }).to_path_buf();
         path.push(format!("{}_language", self.name));
         path.set_extension("txt");
@@ -656,9 +663,25 @@ pub struct Enums<'a> {
 
 struct EnumValue(*const u8, usize);
 
+impl Display for EnumValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(unsafe { std::str::from_raw_parts(self.0, self.1) })
+    }
+}
+
+impl Debug for EnumValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("EnumValue")
+            .field(unsafe { &std::str::from_raw_parts(self.0, self.1) })
+            .finish()
+    }
+}
+
 impl PartialEq for EnumValue {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0 && self.1 == other.1
+        let val = unsafe { std::str::from_raw_parts(self.0, self.1) };
+        let other = unsafe { std::str::from_raw_parts(other.0, other.1) };
+        val == other
     }
 }
 
