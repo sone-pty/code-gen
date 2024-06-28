@@ -157,11 +157,8 @@ pub fn split(pat: &str) -> Result<Vec<&str>, Error> {
                         } else {
                             ret.push("");
                         }
-                    } else {
-                        let top = brackets.pop()?;
-                        if top != '{' {
-                            return Err("Invalid value to split".into());
-                        }
+                    } else if brackets.pop()? != '{' {
+                        return Err("Invalid value to split".into());
                     }
                 }
                 ',' => {

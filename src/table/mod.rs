@@ -62,11 +62,12 @@ impl TableEntity {
     #[inline]
     fn is_valid(&self) -> bool {
         match self {
-            TableEntity::Invalid => true,
-            _ => false,
+            TableEntity::Invalid => false,
+            _ => true,
         }
     }
 
+    #[inline]
     fn name(&self) -> &str {
         match self {
             TableEntity::Template(v, _, _, _) => &v,
@@ -89,7 +90,7 @@ impl Generator<'_> {
             .write(true)
             .truncate(true)
             .open(unsafe { CONFIG_COLLECTION_PATH })?;
-        file.write_fmt(format_args!("{}{}", CFG.file_banner, CFG.line_end_flag))?;
+        file.write_fmt(format_args!("{}", CFG.file_banner))?;
         file.write(
             r##"
 using Config.Common;

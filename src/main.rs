@@ -222,25 +222,47 @@ fn main() {
                 update_git();
             }
 
-            let (tx, rx) = std::sync::mpsc::channel::<JoinHandle<()>>();
-            let tables = Arc::new(util::AtomicLinkedList::new());
-            // load regular tables
-            match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx, excluded, tables.clone()) {
-                Ok(_) => {
-                    while let Ok(handle) = rx.recv() {
-                        let _ = handle.join();
+            if !args.lstring {
+                let (tx, rx) = std::sync::mpsc::channel::<JoinHandle<()>>();
+                let tables = Arc::new(util::AtomicLinkedList::new());
+                // load regular tables
+                match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx, excluded, tables.clone()) {
+                    Ok(_) => {
+                        while let Ok(handle) = rx.recv() {
+                            let _ = handle.join();
+                        }
+                        match build(tables, args.loption.as_str()) {
+                            Err(e) => eprintln!(
+                                "{}",
+                                Red.bold().paint(format!("tables build failed: {}", e))
+                            ),
+                            _ => {}
+                        }
                     }
-                    match build(tables, args.loption.as_str()) {
-                        Err(e) => eprintln!(
-                            "{}",
-                            Red.bold().paint(format!("tables build failed: {}", e))
-                        ),
-                        _ => {}
+                    Err(e) => {
+                        eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
+                        exit(-1);
                     }
                 }
-                Err(e) => {
-                    eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
-                    exit(-1);
+            } else {
+                match util::load_execl_table(
+                    format!("{}/LString.xlsx", unsafe { SOURCE_XLSXS_DIR }),
+                    "LString",
+                ) {
+                    Ok(entity) => {
+                        let generator = Generator {
+                            entities: vec![entity],
+                            loption: &args.loption,
+                        };
+                        if let Err(e) = generator.build() {
+                            eprintln!("{}", Red.bold().paint(format!("Build failed: {}", e)));
+                        }
+                    }
+                    Err(e) => eprintln!(
+                        "{}",
+                        Red.bold()
+                            .paint(format!("Load table failed when building language: {}", e))
+                    ),
                 }
             }
 

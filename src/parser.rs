@@ -1064,8 +1064,12 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
                 }
             }
         }
-        _ => return Err("type does not contain string".into()),
+        _ => {
+            ret.push_str(val);
+            return Ok(ret);
+        }
     }
+
     ret.replace_range(ret.len() - 1.., "}");
     Ok(ret)
 }
