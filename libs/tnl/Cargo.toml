@@ -1,0 +1,15 @@
+[package]
+name = "tnl"
+version = "0.3.3"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[build-dependencies]
+vnlex = { version = "0.10", path = "../vnlex" }
+
+[dependencies]
+vnlex = { version = "0.10", path = "../vnlex" }
+vnutil = { path = "../vnutil" }
