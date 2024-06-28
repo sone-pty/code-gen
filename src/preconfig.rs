@@ -5,16 +5,16 @@ use std::{
 };
 
 #[allow(dead_code)]
-pub struct PreConfigData {
-    pub extra_lang_sheets: Vec<String>,
-    pub ctor_begin: String,
-    pub ctor_end: String,
+pub struct Data {
+    pub extra_lang_sheets: Vec<&'static str>,
+    pub ctor_begin: &'static str,
+    pub ctor_end: &'static str,
 }
 
-impl PreConfigData {
+impl Data {
     pub fn exist(&self, name: &str) -> bool {
         for v in self.extra_lang_sheets.iter() {
-            if v.as_str() == name {
+            if *v == name {
                 return true;
             }
         }
@@ -24,7 +24,7 @@ impl PreConfigData {
 
 fn preconfig_handler<P: AsRef<std::path::Path>>(
     dir: P,
-) -> Result<HashMap<String, PreConfigData>, Error> {
+) -> Result<HashMap<String, Data>, Error> {
     let dirpath = dir.as_ref();
     let mut cfgdir = dirpath.to_path_buf();
     let mut ret = HashMap::new();
@@ -45,19 +45,19 @@ fn preconfig_handler<P: AsRef<std::path::Path>>(
                     let mut data = Vec::new();
                     for i in 0..arr.0.elements.len() {
                         let t = arr.index(i)?.as_str()?;
-                        data.push(t.to_string());
+                        data.push(t);
                     }
                     data
                 };
-                let ctor_begin = config.attribute("ctor_begin")?.as_str()?.to_string();
-                let ctor_end = config.attribute("ctor_end")?.as_str()?.to_string();
+                let ctor_begin = config.attribute("ctor_begin")?.as_str()?;
+                let ctor_end = config.attribute("ctor_end")?.as_str()?;
                 let base_name = base_name.to_str().ok_or::<Error>(
                     "Convert path to string failed when parsing preconfig".into(),
                 )?;
                 let idx = base_name.find('.').unwrap_or_default();
                 ret.insert(
                     base_name[..idx].into(),
-                    PreConfigData {
+                    Data {
                         extra_lang_sheets,
                         ctor_begin,
                         ctor_end,
@@ -69,7 +69,7 @@ fn preconfig_handler<P: AsRef<std::path::Path>>(
     Ok(ret)
 }
 
-pub static PRECONFIG: LazyLock<Arc<HashMap<String, PreConfigData>>> = LazyLock::new(|| {
+pub static PRECONFIG: LazyLock<Arc<HashMap<String, Data>>> = LazyLock::new(|| {
     match preconfig_handler(std::path::PathBuf::from(unsafe { SOURCE_XLSXS_DIR })) {
         Ok(map) => Arc::new(map),
         Err(e) => {
