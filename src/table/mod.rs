@@ -181,8 +181,8 @@ namespace Config
             ..Default::default()
         });
         let mut views = vec![];
-        rayon::join(
-            || println!("Loading tables..."),
+        THREADS.join(
+            || println!("Getting views of tables..."),
             || {
                 self.entities.iter().for_each(|v| {
                     let ctx = ctx.clone();
@@ -192,7 +192,7 @@ namespace Config
         );
 
         // generate
-        rayon::join(
+        THREADS.join(
             || println!("Building codes..."),
             || {
                 views.into_iter().for_each(|v| {

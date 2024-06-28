@@ -649,7 +649,7 @@ impl<'a> TableCore<'a> for Template<'a> {
             required,
         };
 
-        let (r1, r2) = rayon::join(
+        let (r1, r2) = THREADS.join(
             || THREADS.install(|| self.inner_build(&inner_ctx, false)),
             || THREADS.install(|| self.inner_build(&inner_ctx, true)),
         );

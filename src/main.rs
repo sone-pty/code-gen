@@ -10,7 +10,6 @@ use std::{
     path::Path,
     process::{exit, Command},
     sync::{Arc, LazyLock},
-    thread::JoinHandle,
 };
 
 use ansi_term::Colour::Red;
@@ -123,7 +122,6 @@ fn update_git() {
 
 fn load_tables<P: AsRef<Path>>(
     dir: P,
-    tx: std::sync::mpsc::Sender<JoinHandle<()>>,
     excluded: Arc<ExcludedFolders<'static>>,
     tables: Arc<util::AtomicLinkedList<TableEntity>>,
 ) -> Result<(), error::Error> {
@@ -144,18 +142,9 @@ fn load_tables<P: AsRef<Path>>(
         }
 
         if path.is_dir() && !file_name.starts_with('.') && !excluded.0.contains(file_name) {
-            let tx_clone = tx.clone();
             let excluded_clone = excluded.clone();
             let tables_clone = tables.clone();
-            let _ = tx.send(std::thread::spawn(move || {
-                match load_tables(path, tx_clone, excluded_clone, tables_clone) {
-                    Err(e) => {
-                        eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
-                        exit(-1);
-                    }
-                    _ => {}
-                }
-            }));
+            load_tables(path, excluded_clone, tables_clone)?;
         } else if path
             .extension()
             .is_some_and(|x| x.to_str().is_some_and(|x| x == CFG.source_table_suffix))
@@ -164,7 +153,16 @@ fn load_tables<P: AsRef<Path>>(
             let idx = file_name
                 .find('.')
                 .ok_or::<error::Error>("can't find `.` in xlsx file name".into())?;
-            tables.push(util::load_execl_table(&path, &file_name[..idx])?);
+            THREADS.install(|| {
+                match util::load_execl_table(&path, &file_name[..idx]) {
+                    Ok(v) => {
+                        tables.push(v);
+                    },
+                    Err(e) => {
+                        eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
+                    },
+                }
+            });
         }
     }
     Ok(())
@@ -223,27 +221,24 @@ fn main() {
             }
 
             if !args.lstring {
-                let (tx, rx) = std::sync::mpsc::channel::<JoinHandle<()>>();
                 let tables = Arc::new(util::AtomicLinkedList::new());
                 // load regular tables
-                match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx, excluded, tables.clone()) {
-                    Ok(_) => {
-                        while let Ok(handle) = rx.recv() {
-                            let _ = handle.join();
-                        }
-                        match build(tables, args.loption.as_str()) {
+                THREADS.join(
+                    || println!("Loading tables..."),
+                    || match load_tables(unsafe { SOURCE_XLSXS_DIR }, excluded, tables.clone()) {
+                        Ok(_) => match build(tables, args.loption.as_str()) {
                             Err(e) => eprintln!(
                                 "{}",
                                 Red.bold().paint(format!("tables build failed: {}", e))
                             ),
                             _ => {}
+                        },
+                        Err(e) => {
+                            eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
+                            exit(-1);
                         }
-                    }
-                    Err(e) => {
-                        eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
-                        exit(-1);
-                    }
-                }
+                    },
+                );
             } else {
                 match util::load_execl_table(
                     format!("{}/LString.xlsx", unsafe { SOURCE_XLSXS_DIR }),
