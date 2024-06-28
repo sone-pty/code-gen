@@ -26,8 +26,12 @@ impl Value for SString {
         }
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::String
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::String {
+            Ok(())
+        } else {
+            Err("Check failed, expected string type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -72,8 +76,12 @@ impl Value for LString {
         Ok(())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::LString
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::LString {
+            Ok(())
+        } else {
+            Err("Check failed, expected lstring type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {

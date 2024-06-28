@@ -289,19 +289,6 @@ fn main() {
 }
 
 #[test]
-fn test() {
-    let mut display = String::new();
-    let ty = parser::parse_type("enum LifeRecord.ScoreType", 0, 0).unwrap();
-    let val = parser::parse_assign_with_type(&ty, "c", None, None).unwrap();
-    if val.check() {
-        let _ = val.code_fmt(&mut display);
-    } else {
-        println!("check failed");
-    }
-    println!("{}", display);
-}
-
-#[test]
 fn generate() {
     let path = "D:\\taiwu\\config\\GlobalConfig.xlsx";
     let table = util::load_execl_table(path, "GlobalConfig").unwrap();
@@ -314,6 +301,7 @@ fn generate() {
 
 #[test]
 fn test_split() {
-    let val = "{hairup_double_l_front,hair/female_double_hairup_22,{hairup_double_r_front,hair/female_double_hairup_22}";
-    println!("{:?}", util::split(val));
+    let ty = crate::parser::parse_type("short[2]", 0, 0).unwrap();
+    let val = crate::parser::parse_assign_with_type(&ty, "{}", None, None).unwrap();
+    val.code(&mut std::io::stdout()).unwrap();
 }

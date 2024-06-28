@@ -100,7 +100,10 @@ pub fn parse_assign_with_type(
 
     let box_vals = parse_value(vals, 0, 0)?;
     match get_value(ty, &box_vals, &ctx) {
-        Ok(e) => Ok(e),
+        Ok(e) => {
+            e.check()?;
+            Ok(e)
+        },
         e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
     }
 }
@@ -1036,7 +1039,7 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
         }
         TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
             if val == "" {
-                return Ok("".into());
+                return Ok(val.into());
             }
 
             ret.push('{');

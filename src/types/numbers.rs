@@ -17,8 +17,12 @@ impl Value for Bool {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Bool
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Bool {
+            Ok(())
+        } else {
+            Err("Check failed, expected bool type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -54,8 +58,12 @@ impl Value for Int {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Int
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Int {
+            Ok(())
+        } else {
+            Err("Check failed, expected int type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -90,8 +98,12 @@ impl Value for Decimal {
         Ok(())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Decimal
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Decimal {
+            Ok(())
+        } else {
+            Err("Check failed, expected decimal type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -126,8 +138,12 @@ impl Value for UInt {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Uint
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Uint {
+            Ok(())
+        } else {
+            Err("Check failed, expected uint type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -167,8 +183,12 @@ impl Value for Short {
         }
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Short
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Short {
+            Ok(())
+        } else {
+            Err("Check failed, expected short type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -209,8 +229,12 @@ impl Value for UShort {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::UShort
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::UShort {
+            Ok(())
+        } else {
+            Err("Check failed, expected ushort type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -246,8 +270,12 @@ impl Value for Byte {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Byte
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Byte {
+            Ok(())
+        } else {
+            Err("Check failed, expected byte type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -283,8 +311,12 @@ impl Value for SByte {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::SByte
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::SByte {
+            Ok(())
+        } else {
+            Err("Check failed, expected sbyte type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -320,8 +352,12 @@ impl Value for Float {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Float
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Float {
+            Ok(())
+        } else {
+            Err("Check failed, expected float type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -357,8 +393,12 @@ impl Value for Double {
             .map_err(|e| e.into())
     }
 
-    fn check(&self) -> bool {
-        self.ty == TypeInfo::Double
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.ty == TypeInfo::Double {
+            Ok(())
+        } else {
+            Err("Check failed, expected double type".into())
+        }
     }
 
     fn ty_info(&self) -> &TypeInfo {

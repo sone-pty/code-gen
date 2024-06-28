@@ -29,8 +29,11 @@ impl Value for List {
         Ok(())
     }
 
-    fn check(&self) -> bool {
-        self.vals.iter().all(|v| v.check())
+    fn check(&self) -> Result<(), crate::error::Error> {
+        for v in self.vals.iter() {
+            v.check()?;
+        }
+        Ok(())
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -89,8 +92,11 @@ impl Value for ShortList {
         Ok(())
     }
 
-    fn check(&self) -> bool {
-        self.vals.iter().all(|v| v.check())
+    fn check(&self) -> Result<(), crate::error::Error> {
+        for v in self.vals.iter() {
+            v.check()?;
+        }
+        Ok(())
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -149,15 +155,31 @@ impl Value for FixedArray {
         Ok(())
     }
 
-    fn check(&self) -> bool {
-        let TypeInfo::FixedArray(_, nums) = self.ty else {
-            return false;
+    fn check(&self) -> Result<(), crate::error::Error> {
+        if self.is_null || self.vals.is_empty() {
+            return Ok(());
+        }
+        
+        let TypeInfo::FixedArray(ref sub, nums) = self.ty else {
+            return Err("Check failed, expected fixed array type".into());
         };
+        
+        // TODO: reform
+        if sub.is_string() && self.vals.len() == 1 {
+            let mut t = String::new();
+            unsafe { self.vals.get_unchecked(0).code_fmt(&mut t) }?;
+            if t == "\"\"" {
+                return Ok(());
+            }
+        }
 
         if nums == 0 || self.vals.len() != nums {
-            false
+            return Err(format!("Fixed array does not match number of values, expected `{}`, actual nums = {}", nums, self.vals.len()).into());
         } else {
-            self.vals.iter().all(|v| v.check())
+            for v in self.vals.iter() {
+                v.check()?;
+            }
+            Ok(())
         }
     }
 
@@ -217,11 +239,15 @@ impl Value for Array {
         Ok(())
     }
 
-    fn check(&self) -> bool {
+    fn check(&self) -> Result<(), crate::error::Error> {
         let TypeInfo::Array(_) = self.ty else {
-            return false;
+            return Err("Check failed, expected array type".into());
         };
-        self.vals.iter().all(|v| v.check())
+
+        for v in self.vals.iter() {
+            v.check()?;
+        }
+        Ok(())
     }
 
     fn ty_info(&self) -> &TypeInfo {
@@ -275,15 +301,18 @@ impl Value for Tuple {
         Ok(())
     }
 
-    fn check(&self) -> bool {
+    fn check(&self) -> Result<(), crate::error::Error> {
         let TypeInfo::Tuple(ref types) = self.ty else {
-            return false;
+            return Err("Check failed, expected tuple type".into());
         };
 
         if types.len() != self.vals.len() {
-            false
+            return Err(format!("Tuple type {} does not match number of values, expected `{}`, actual nums = {}", self.ty, types.len(), self.vals.len()).into());
         } else {
-            self.vals.iter().all(|v| v.check())
+            for v in self.vals.iter() {
+                v.check()?;
+            }
+            Ok(())
         }
     }
 
@@ -334,15 +363,18 @@ impl Value for ValueTuple {
         Ok(())
     }
 
-    fn check(&self) -> bool {
+    fn check(&self) -> Result<(), crate::error::Error> {
         let TypeInfo::ValueTuple(ref types) = self.ty else {
-            return false;
+            return Err("Check failed, expected valuetuple type".into());
         };
 
         if types.len() != self.vals.len() {
-            false
+            return Err(format!("ValueTuple type {} does not match number of values, expected `{}`, actual nums = {}", self.ty, types.len(), self.vals.len()).into());
         } else {
-            self.vals.iter().all(|v| v.check())
+            for v in self.vals.iter() {
+                v.check()?;
+            }
+            Ok(())
         }
     }
 

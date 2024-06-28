@@ -14,7 +14,7 @@ pub trait Value {
     fn code(&self, stream: &mut dyn std::io::Write) -> Result<(), Error>;
     fn ty_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
     fn code_fmt(&self, stream: &mut dyn std::fmt::Write) -> Result<(), Error>;
-    fn check(&self) -> bool;
+    fn check(&self) -> Result<(), Error>;
     fn ty_info(&self) -> &TypeInfo;
 }
 

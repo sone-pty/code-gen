@@ -46,11 +46,11 @@ impl Value for Custom {
         Ok(())
     }
 
-    fn check(&self) -> bool {
+    fn check(&self) -> Result<(), crate::error::Error> {
         let TypeInfo::Custom(_) = self.ty else {
-            return false;
+            return Err("Check failed, expected custom type".into());
         };
-        true
+        Ok(())
     }
 
     fn ty_info(&self) -> &TypeInfo {

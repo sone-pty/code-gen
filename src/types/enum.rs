@@ -22,11 +22,11 @@ impl Value for Enum {
         Ok(())
     }
 
-    fn check(&self) -> bool {
+    fn check(&self) -> Result<(), crate::error::Error> {
         let TypeInfo::Enum(_, _) = self.ty else {
-            return false;
+            return Err("Check failed, expected enum type".into());
         };
-        true
+        Ok(())
     }
 
     fn ty_info(&self) -> &TypeInfo {
