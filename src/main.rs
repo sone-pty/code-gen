@@ -192,7 +192,6 @@ fn build(
 struct ExcludedFolders<'a>(HashSet<&'a str>);
 
 fn main() {
-    //let _ = std::io::Read::read(&mut std::io::stdin(), &mut [0; 1]);
     let args = Args::parse();
     create_dest_dirs(&args);
     unsafe {
@@ -226,6 +225,7 @@ fn main() {
                 let (tx, rx) = std::sync::mpsc::channel::<JoinHandle<()>>();
                 let tables = Arc::new(util::AtomicLinkedList::new());
                 // load regular tables
+                println!("Loading tables...");
                 match load_tables(unsafe { SOURCE_XLSXS_DIR }, tx, excluded, tables.clone()) {
                     Ok(_) => {
                         while let Ok(handle) = rx.recv() {
