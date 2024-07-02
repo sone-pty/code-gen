@@ -9,7 +9,7 @@ use ansi_term::Colour::Red;
 use dashmap::DashMap;
 use global_config::GlobalConfig;
 use language::Languages;
-use std::{collections::HashMap, io::Write, ops::Deref, process::exit, sync::Arc};
+use std::{collections::HashMap, io::Write, ops::Deref, sync::Arc};
 use template::{Enums, Template};
 use xlsx_read::excel_table::ExcelTable;
 
@@ -252,7 +252,6 @@ namespace Config
                         },
                         Err(e) => {
                             eprintln!("{}", Red.bold().paint(format!("Invalid tableview: {}", e)));
-                            exit(-1);
                         }
                     });
                 })
