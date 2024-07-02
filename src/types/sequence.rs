@@ -159,11 +159,11 @@ impl Value for FixedArray {
         if self.is_null || self.vals.is_empty() {
             return Ok(());
         }
-        
+
         let TypeInfo::FixedArray(ref sub, nums) = self.ty else {
             return Err("Check failed, expected fixed array type".into());
         };
-        
+
         // TODO: reform
         if sub.is_string() && self.vals.len() == 1 {
             let mut t = String::new();
@@ -174,7 +174,12 @@ impl Value for FixedArray {
         }
 
         if nums == 0 || self.vals.len() != nums {
-            return Err(format!("Fixed array does not match number of values, expected `{}`, actual nums = {}", nums, self.vals.len()).into());
+            return Err(format!(
+                "Fixed array does not match number of values, expected `{}`, actual nums = {}",
+                nums,
+                self.vals.len()
+            )
+            .into());
         } else {
             for v in self.vals.iter() {
                 v.check()?;
@@ -307,7 +312,13 @@ impl Value for Tuple {
         };
 
         if types.len() != self.vals.len() {
-            return Err(format!("Tuple type {} does not match number of values, expected `{}`, actual nums = {}", self.ty, types.len(), self.vals.len()).into());
+            return Err(format!(
+                "Tuple type {} does not match number of values, expected `{}`, actual nums = {}",
+                self.ty,
+                types.len(),
+                self.vals.len()
+            )
+            .into());
         } else {
             for v in self.vals.iter() {
                 v.check()?;

@@ -6,7 +6,12 @@ use std::{
 
 use xlsx_read::excel_file::ExcelFile;
 
-use crate::{config::CFG, error::Error, preconfig::PRECONFIG, table::TableEntity};
+use crate::{
+    config::CFG,
+    error::Error,
+    preconfig::PRECONFIG,
+    table::{ExcelTableWrapper, TableEntity},
+};
 
 #[inline]
 pub fn format<W: std::io::Write + ?Sized>(tab_nums: i32, stream: &mut W) -> Result<(), Error> {
@@ -90,27 +95,27 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
                 let TableEntity::Template(_, ref mut v, _, _) = entity else {
                     return Err("Expected Template type entity".into());
                 };
-                v.replace(sheet);
+                v.replace(ExcelTableWrapper(sheet));
             }
             "GlobalConfig" => {
                 entity = TableEntity::new_global(name);
                 let TableEntity::GlobalConfig(_, ref mut v) = entity else {
                     return Err("Expected GlobalConfig type entity".into());
                 };
-                v.replace(sheet);
+                v.replace(ExcelTableWrapper(sheet));
             }
             v if v.starts_with("t_") => {
                 let TableEntity::Template(_, _, ref mut enums, _) = entity else {
                     return Err("Expected Template type entity".into());
                 };
-                enums.push(((&v[2..]).into(), sheet));
+                enums.push(((&v[2..]).into(), ExcelTableWrapper(sheet)));
             }
             v if name == "LString" => match entity {
                 TableEntity::Language(ref mut langs) => {
-                    langs.push((v.into(), sheet));
+                    langs.push((v.into(), ExcelTableWrapper(sheet)));
                 }
                 TableEntity::Invalid => {
-                    entity = TableEntity::new_language((v.into(), sheet));
+                    entity = TableEntity::new_language((v.into(), ExcelTableWrapper(sheet)));
                 }
                 _ => {
                     return Err("Expected Language type entity".into());
@@ -122,7 +127,7 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
                 };
                 if let Some(preconfig) = PRECONFIG.get(name) {
                     if preconfig.exist(v) {
-                        extras.push((v.into(), sheet));
+                        extras.push((v.into(), ExcelTableWrapper(sheet)));
                     }
                 }
             }
@@ -136,45 +141,31 @@ pub fn split(pat: &str) -> Result<Vec<&str>, Error> {
     let mut ret = Vec::new();
 
     if pat_trim.starts_with("{") && pat_trim.ends_with("}") {
+        let flow = pat_trim[1..pat_trim.len() - 1].chars().collect::<Vec<_>>();
         let mut brackets = Stack::new();
         let mut begin = 1;
-        let mut idx = 0;
+        let mut charidx = 0;
 
-        for v in pat_trim.chars() {
+        for (_, v) in flow.iter().enumerate() {
+            charidx += v.len_utf8();
             match v {
                 '{' => {
-                    if idx != 0 {
-                        if brackets.is_empty() {
-                            begin = idx;
-                        }
-                        brackets.push(v);
-                    }
+                    brackets.push(v);
                 }
-                '}' => {
-                    if idx == pat_trim.len() - 1 {
-                        if begin < idx {
-                            ret.push(&pat_trim[begin..idx]);
-                        } else {
-                            ret.push("");
-                        }
-                    } else if brackets.pop()? != '{' {
-                        return Err("Invalid value to split".into());
+                '}' => match brackets.pop() {
+                    Err(_) => {
+                        return Err(format!("Invalid pattern to split, pat = {}", pat_trim).into());
                     }
-                }
-                ',' => {
-                    if brackets.is_empty() {
-                        ret.push(&pat_trim[begin..idx]);
-                        begin = idx + 1;
-                    }
-                }
+                    _ => {}
+                },
+                ',' => if brackets.is_empty() {
+                    ret.push(&pat_trim[begin..charidx]);
+                    begin = charidx + 1;
+                },
                 _ => {}
             }
-            idx += v.len_utf8();
         }
-
-        if !brackets.is_empty() {
-            return Err("Invalid value to split".into());
-        }
+        ret.push(&pat_trim[begin..pat_trim.len() - 1]);
     }
     Ok(ret)
 }

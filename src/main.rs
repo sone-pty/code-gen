@@ -290,13 +290,9 @@ fn main() {
 
 #[test]
 fn generate() {
-    let path = "D:\\taiwu\\config\\GlobalConfig.xlsx";
-    let table = util::load_execl_table(path, "GlobalConfig").unwrap();
-    let ctx = std::sync::Arc::new(table::BuildContext::default());
-    match table.view(ctx.clone()).unwrap().build(ctx.as_ref()) {
-        Ok(_) => {}
-        Err(e) => println!("{}", e),
-    };
+    for v in util::split("{白蛟,-2,1,5,0}.{赤蛟,-2,1,5,0}").unwrap() {
+        println!("{}", v);
+    }
 }
 
 #[test]

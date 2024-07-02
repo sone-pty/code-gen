@@ -3,10 +3,10 @@ use std::rc::Rc;
 use std::fmt;
 
 pub struct ExcelTable {
-    origin: (usize, usize),
-    size: (usize, usize),
-    cells: Vec<Option<Rc<String>>>,
-    merged_cells: Vec<((usize, usize), (usize, usize))>,
+    pub origin: (usize, usize),
+    pub size: (usize, usize),
+    pub cells: Vec<Option<Rc<String>>>,
+    pub merged_cells: Vec<((usize, usize), (usize, usize))>,
 }
 
 pub struct RangeName<'a> (&'a ExcelTable, usize, usize, usize, usize);

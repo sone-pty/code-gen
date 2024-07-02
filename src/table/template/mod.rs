@@ -8,7 +8,6 @@ use std::{
     sync::Arc,
 };
 
-use ansi_term::Colour::Red;
 use xlsx_read::excel_table::ExcelTable;
 
 use crate::{
@@ -22,7 +21,7 @@ use crate::{
     THREADS,
 };
 
-use super::{BuildContext, Sheet, Table, TableCore, VectorView};
+use super::{BuildContext, ExcelTableWrapper, Sheet, Table, TableCore, VectorView};
 
 mod base;
 mod item;
@@ -40,7 +39,7 @@ impl<'a> Template<'a> {
     fn load_template<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
-        extras: &'b [(String, ExcelTable)],
+        extras: &'b [(String, ExcelTableWrapper)],
         ctx: &BuildContext,
     ) -> Result<Self, Error> {
         let row = Table::get_sheet_height(table)?;
@@ -118,13 +117,11 @@ impl<'a> Template<'a> {
         // Check if the table contains the data row in ref file
         for (id, _) in refs.iter().filter(|v| v.0 != "None") {
             if !table_refs_set.contains(id.as_str()) {
-                eprintln!(
-                    "{}",
-                    Red.bold().paint(format!(
-                        "In the table {}, lack of row: {} which is found in ref.txt",
-                        name, id,
-                    ))
-                );
+                return Err(format!(
+                    "In the table {}, lack of row: {} which is found in ref.txt",
+                    name, id
+                )
+                .into());
             }
         }
         // flush
@@ -661,7 +658,7 @@ impl<'a> TableCore<'a> for Template<'a> {
     fn load<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
-        extras: &'b [(String, ExcelTable)],
+        extras: &'b [(String, ExcelTableWrapper)],
         ctx: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where
@@ -882,7 +879,7 @@ impl<'a> FKValue<'a> {
             unsafe {
                 raw[0]
                     .as_mut_ptr()
-                    .write(Self::load_0(*&default, pattern, ctx)?);
+                    .write(Self::load_0(*&default, pattern, ctx).map_err::<Error, _>(|e| format!("Cell.({}, {}), `{}`", CFG.row_of_default + 1, conv_col_idx(*c + 1), e).into())?);
             }
 
             for r in CFG.row_of_start..data.len() {
@@ -898,7 +895,7 @@ impl<'a> FKValue<'a> {
                 unsafe {
                     raw[r - CFG.row_of_start + 1]
                         .as_mut_ptr()
-                        .write(Self::load_0(val, pattern, ctx)?)
+                        .write(Self::load_0(val, pattern, ctx).map_err::<Error, _>(|e| format!("Cell.({}, {}), `{}`", r + 1, conv_col_idx(*c + 1), e).into())?)
                 };
             }
             ret.newvals
@@ -951,7 +948,12 @@ impl<'a> FKValue<'a> {
             if rval != "{}" {
                 ret.push('{');
             }
-            Self::load_1(ctx, &pat, &rval, &mut ret)?;
+            match Self::load_1(ctx, &pat, &rval, &mut ret) {
+                Err(e) => {
+                    return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
+                }
+                _ => {}
+            }
             if rval != "{}" {
                 ret.push('}');
             }
@@ -959,7 +961,12 @@ impl<'a> FKValue<'a> {
             if rval != "{}" {
                 ret.push('{');
             }
-            Self::load_2(ctx, &pat, &rval, &mut ret)?;
+            match Self::load_2(ctx, &pat, &rval, &mut ret) {
+                Err(e) => {
+                    return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
+                }
+                _ => {}
+            }
             if rval != "{}" {
                 ret.push('}');
             }

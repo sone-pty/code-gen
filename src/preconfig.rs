@@ -22,9 +22,7 @@ impl Data {
     }
 }
 
-fn preconfig_handler<P: AsRef<std::path::Path>>(
-    dir: P,
-) -> Result<HashMap<String, Data>, Error> {
+fn preconfig_handler<P: AsRef<std::path::Path>>(dir: P) -> Result<HashMap<String, Data>, Error> {
     let dirpath = dir.as_ref();
     let mut cfgdir = dirpath.to_path_buf();
     let mut ret = HashMap::new();

@@ -1,5 +1,5 @@
 use crate::{
-    config::{CFG, CONFIG_COLLECTION_PATH},
+    config::{CFG, CONFIG_COLLECTION_PATH, MAGIC},
     error::Error,
     lex::states::nodes::value_type,
     types::Value,
@@ -9,7 +9,7 @@ use ansi_term::Colour::Red;
 use dashmap::DashMap;
 use global_config::GlobalConfig;
 use language::Languages;
-use std::{collections::HashMap, io::Write, sync::Arc};
+use std::{collections::HashMap, io::Write, ops::Deref, process::exit, sync::Arc};
 use template::{Enums, Template};
 use xlsx_read::excel_table::ExcelTable;
 
@@ -17,16 +17,63 @@ mod global_config;
 mod language;
 mod template;
 
+#[repr(transparent)]
+pub(crate) struct ExcelTableWrapper(pub(crate) ExcelTable);
+
+impl Deref for ExcelTableWrapper {
+    type Target = ExcelTable;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[allow(dead_code)]
+impl ExcelTableWrapper {
+    fn load_from<R: std::io::Read + ?Sized>(&self, _: &mut R) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn save_to<W: std::io::Write + ?Sized>(&self, file: &mut W) -> Result<(), Error> {
+        // magic
+        file.write(MAGIC)?;
+        // origin
+        file.write(&self.origin.0.to_ne_bytes())?;
+        file.write(&self.origin.1.to_ne_bytes())?;
+        // size
+        file.write(&self.size.0.to_ne_bytes())?;
+        file.write(&self.size.1.to_ne_bytes())?;
+        // cells
+        for cell in self.cells.iter() {
+            if cell.is_some() {
+                let v = unsafe { cell.as_ref().unwrap_unchecked() };
+                file.write(&[1])?;
+                file.write(v.as_bytes())?;
+            } else {
+                file.write(&[0])?;
+            }
+        }
+        // merged_cells
+        for (v0, v1) in self.merged_cells.iter() {
+            file.write(&v0.0.to_ne_bytes())?;
+            file.write(&v0.1.to_ne_bytes())?;
+            file.write(&v1.0.to_ne_bytes())?;
+            file.write(&v1.1.to_ne_bytes())?;
+        }
+        Ok(())
+    }
+}
+
 pub enum TableEntity {
     Invalid,
     Template(
         String,
-        Option<ExcelTable>,
-        Vec<(String, ExcelTable)>,
-        Vec<(String, ExcelTable)>,
+        Option<ExcelTableWrapper>,
+        Vec<(String, ExcelTableWrapper)>,
+        Vec<(String, ExcelTableWrapper)>,
     ), // (name, template, enums, extras)
-    GlobalConfig(String, Option<ExcelTable>),
-    Language(Vec<(String, ExcelTable)>),
+    GlobalConfig(String, Option<ExcelTableWrapper>),
+    Language(Vec<(String, ExcelTableWrapper)>),
 }
 
 unsafe impl Send for TableEntity {}
@@ -45,7 +92,7 @@ impl TableEntity {
         TableEntity::GlobalConfig(name.into(), None)
     }
 
-    pub fn new_language(first: (String, ExcelTable)) -> Self {
+    pub fn new_language(first: (String, ExcelTableWrapper)) -> Self {
         let mut data = Vec::new();
         data.push(first);
         TableEntity::Language(data)
@@ -204,7 +251,8 @@ namespace Config
                             _ => {}
                         },
                         Err(e) => {
-                            eprintln!("{}", Red.bold().paint(format!("Invalid tableview: {}", e)))
+                            eprintln!("{}", Red.bold().paint(format!("Invalid tableview: {}", e)));
+                            exit(-1);
                         }
                     });
                 })
@@ -227,7 +275,7 @@ pub trait TableCore<'a> {
     fn load<'b: 'a>(
         _: &'b ExcelTable,
         _: &'b str,
-        _: &'b [(String, ExcelTable)],
+        _: &'b [(String, ExcelTableWrapper)],
         _: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where
@@ -236,7 +284,7 @@ pub trait TableCore<'a> {
         unimplemented!()
     }
     fn load_language<'b: 'a>(
-        _: &'b [(String, ExcelTable)],
+        _: &'b [(String, ExcelTableWrapper)],
         _: &'b str,
         _: Arc<BuildContext>,
     ) -> Result<Self, Error>

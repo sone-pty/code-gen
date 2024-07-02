@@ -106,3 +106,4 @@ pub static ENUM_FLAGS_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(||
     ret.insert("1");
     ret
 });
+pub const MAGIC: &'static [u8] = &[0xFF, 0xFE, 0xF0, 0xAE];

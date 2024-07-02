@@ -1,13 +1,11 @@
 use std::{fs::File, io::Write, sync::Arc};
 
-use xlsx_read::excel_table::ExcelTable;
-
 use crate::{
     config::{CFG, LANG_OUTPUT_DIR, OUTPUT_SCRIPT_CODE_DIR},
     error::Error,
 };
 
-use super::{BuildContext, Sheet, TableCore};
+use super::{BuildContext, ExcelTableWrapper, Sheet, TableCore};
 
 pub struct Languages<'a> {
     langs: Vec<(&'a str, Sheet<'a>)>,
@@ -106,7 +104,7 @@ impl<'a> TableCore<'a> for Languages<'a> {
     }
 
     fn load_language<'b: 'a>(
-        langs: &'b [(String, ExcelTable)],
+        langs: &'b [(String, ExcelTableWrapper)],
         _: &'b str,
         _: Arc<BuildContext>,
     ) -> Result<Self, Error>

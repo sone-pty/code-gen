@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::{BuildContext, Sheet, TableCore, VectorView};
+use super::{BuildContext, ExcelTableWrapper, Sheet, TableCore, VectorView};
 use crate::{
     config::{CFG, OUTPUT_SCRIPT_CODE_DIR, OUTPUT_SERVER_SCRIPT_CODE_DIR},
     error::Error,
@@ -170,7 +170,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
     fn load<'b: 'a>(
         table: &'b ExcelTable,
         name: &'b str,
-        _: &'b [(String, ExcelTable)],
+        _: &'b [(String, ExcelTableWrapper)],
         _: Arc<BuildContext>,
     ) -> Result<Self, Error>
     where

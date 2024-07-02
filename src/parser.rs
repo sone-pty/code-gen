@@ -103,7 +103,7 @@ pub fn parse_assign_with_type(
         Ok(e) => {
             e.check()?;
             Ok(e)
-        },
+        }
         e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
     }
 }
