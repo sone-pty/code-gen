@@ -327,6 +327,7 @@ pub(crate) fn inner_build_server<W: std::io::Write + ?Sized>(
 
     format(tab_nums, stream)?;
     stream.write("}".as_bytes())?;
+    stream.write(end.as_bytes())?;
     Ok(())
 }
 
