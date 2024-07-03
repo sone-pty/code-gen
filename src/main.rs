@@ -175,11 +175,13 @@ fn build(
     loption: &str,
 ) -> Result<(), error::Error> {
     // SAFETY: no data-race here, read-only
-    let tables = unsafe {
+    let mut tables = unsafe {
         Arc::into_inner(tables)
             .ok_or::<error::Error>("".into())?
             .into_unsafe_vector()
     };
+
+    tables.sort_by(|a, b| a.name().cmp(b.name()));
     let genarator = Generator {
         entities: tables,
         loption,

@@ -115,10 +115,11 @@ impl TableEntity {
     }
 
     #[inline]
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             TableEntity::Template(v, _, _, _) => &v,
             TableEntity::GlobalConfig(v, _) => &v,
+            TableEntity::Language(_) => "LString",
             _ => "",
         }
     }
