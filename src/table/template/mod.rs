@@ -834,7 +834,23 @@ impl<'a> Enums<'a> {
     }
 
     pub fn inner_load_sheet<'b: 'a>(table: &'b ExcelTable) -> Result<Sheet<'b>, Error> {
-        let row = table.height();
+        let row = {
+            let mut v = None;
+            for r in 0..table.height() {
+                if table.cell_content(0, r).is_none()
+                    || table
+                        .cell_content(0, r)
+                        .is_some_and(|v| v.trim().is_empty())
+                {
+                    v = Some(r);
+                }
+            }
+            if v.is_none() {
+                table.height()
+            } else {
+                unsafe { v.unwrap_unchecked() }
+            }
+        };
         let col = table.width();
 
         // build row data
@@ -877,9 +893,17 @@ impl<'a> FKValue<'a> {
             let default = data[CFG.row_of_default].value(*c)?;
 
             unsafe {
-                raw[0]
-                    .as_mut_ptr()
-                    .write(Self::load_0(*&default, pattern, ctx).map_err::<Error, _>(|e| format!("Cell.({}, {}), `{}`", CFG.row_of_default + 1, conv_col_idx(*c + 1), e).into())?);
+                raw[0].as_mut_ptr().write(
+                    Self::load_0(*&default, pattern, ctx).map_err::<Error, _>(|e| {
+                        format!(
+                            "Cell.({}, {}), `{}`",
+                            CFG.row_of_default + 1,
+                            conv_col_idx(*c + 1),
+                            e
+                        )
+                        .into()
+                    })?,
+                );
             }
 
             for r in CFG.row_of_start..data.len() {
@@ -893,9 +917,11 @@ impl<'a> FKValue<'a> {
                 };
 
                 unsafe {
-                    raw[r - CFG.row_of_start + 1]
-                        .as_mut_ptr()
-                        .write(Self::load_0(val, pattern, ctx).map_err::<Error, _>(|e| format!("Cell.({}, {}), `{}`", r + 1, conv_col_idx(*c + 1), e).into())?)
+                    raw[r - CFG.row_of_start + 1].as_mut_ptr().write(
+                        Self::load_0(val, pattern, ctx).map_err::<Error, _>(|e| {
+                            format!("Cell.({}, {}), `{}`", r + 1, conv_col_idx(*c + 1), e).into()
+                        })?,
+                    )
                 };
             }
             ret.newvals

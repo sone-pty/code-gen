@@ -158,10 +158,12 @@ pub fn split(pat: &str) -> Result<Vec<&str>, Error> {
                     }
                     _ => {}
                 },
-                ',' => if brackets.is_empty() {
-                    ret.push(&pat_trim[begin..charidx]);
-                    begin = charidx + 1;
-                },
+                ',' => {
+                    if brackets.is_empty() {
+                        ret.push(&pat_trim[begin..charidx]);
+                        begin = charidx + 1;
+                    }
+                }
                 _ => {}
             }
         }
