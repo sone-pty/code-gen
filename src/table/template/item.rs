@@ -229,6 +229,7 @@ pub(crate) fn inner_build_client<W: std::io::Write>(
 
     format(tab_nums, stream)?;
     stream.write("}".as_bytes())?;
+    stream.write(end.as_bytes())?;
     Ok(())
 }
 
