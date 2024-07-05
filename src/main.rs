@@ -173,6 +173,7 @@ fn load_tables<P: AsRef<Path>>(
 fn build(
     tables: Arc<util::AtomicLinkedList<TableEntity>>,
     loption: &str,
+    lstring: bool,
 ) -> Result<(), error::Error> {
     // SAFETY: no data-race here, read-only
     let mut tables = unsafe {
@@ -185,6 +186,7 @@ fn build(
     let genarator = Generator {
         entities: tables,
         loption,
+        lstring,
     };
     genarator.build()?;
     Ok(())
@@ -233,7 +235,7 @@ fn main() {
                         while let Ok(handle) = rx.recv() {
                             let _ = handle.join();
                         }
-                        match build(tables, args.loption.as_str()) {
+                        match build(tables, args.loption.as_str(), false) {
                             Err(e) => eprintln!(
                                 "{}",
                                 Red.bold().paint(format!("tables build failed: {}", e))
@@ -255,6 +257,7 @@ fn main() {
                         let generator = Generator {
                             entities: vec![entity],
                             loption: &args.loption,
+                            lstring: true,
                         };
                         if let Err(e) = generator.build() {
                             eprintln!("{}", Red.bold().paint(format!("Build failed: {}", e)));

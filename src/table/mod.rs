@@ -128,19 +128,21 @@ impl TableEntity {
 pub struct Generator<'a> {
     pub entities: Vec<TableEntity>,
     pub loption: &'a str,
+    pub lstring: bool,
 }
 
 impl Generator<'_> {
     pub fn build(self) -> Result<(), Error> {
-        // generate ConfigCollection.cs
-        let mut file = std::fs::File::options()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(unsafe { CONFIG_COLLECTION_PATH })?;
-        file.write_fmt(format_args!("{}", CFG.file_banner))?;
-        file.write(
-            r##"
+        if !self.lstring {
+            // generate ConfigCollection.cs
+            let mut file = std::fs::File::options()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(unsafe { CONFIG_COLLECTION_PATH })?;
+            file.write_fmt(format_args!("{}", CFG.file_banner))?;
+            file.write(
+                r##"
 using Config.Common;
 using System.Collections.Generic;
 
@@ -156,27 +158,27 @@ namespace Config
         /// </summary>
         public static readonly IConfigData[] Items = new IConfigData[]
         {"##
-            .as_bytes(),
-        )?;
+                .as_bytes(),
+            )?;
 
-        // TODO: 临时代码
-        file.write_fmt(format_args!("\n\t\t\tLocalSurnames.Instance,"))?;
-        file.write_fmt(format_args!("\n\t\t\tLocalNames.Instance,"))?;
-        file.write_fmt(format_args!("\n\t\t\tLocalZangNames.Instance,"))?;
-        file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"))?;
-        file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"))?;
+            // TODO: 临时代码
+            file.write_fmt(format_args!("\n\t\t\tLocalSurnames.Instance,"))?;
+            file.write_fmt(format_args!("\n\t\t\tLocalNames.Instance,"))?;
+            file.write_fmt(format_args!("\n\t\t\tLocalZangNames.Instance,"))?;
+            file.write_fmt(format_args!("\n\t\t\tLocalTownNames.Instance,"))?;
+            file.write_fmt(format_args!("\n\t\t\tLocalMonasticTitles.Instance,"))?;
 
-        for name in self
-            .entities
-            .iter()
-            .filter(|v| v.is_valid() && !v.is_language())
-            .map(|v| v.name())
-        {
-            file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
-        }
+            for name in self
+                .entities
+                .iter()
+                .filter(|v| v.is_valid() && !v.is_language())
+                .map(|v| v.name())
+            {
+                file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
+            }
 
-        file.write("\n\t\t".as_bytes())?;
-        file.write(r##"};
+            file.write("\n\t\t".as_bytes())?;
+            file.write(r##"};
 
         /// <summary>
         /// 配置数据名称表
@@ -184,44 +186,45 @@ namespace Config
         public static readonly Dictionary<string, IConfigData> NameMap = new Dictionary<string, IConfigData>()
         {"##.as_bytes())?;
 
-        // TODO: 临时代码
-        file.write_fmt(format_args!(
-            "\n\t\t\t{{\"{}\", {}.Instance}},",
-            "LocalSurnames", "LocalSurnames"
-        ))?;
-        file.write_fmt(format_args!(
-            "\n\t\t\t{{\"{}\", {}.Instance}},",
-            "LocalNames", "LocalNames"
-        ))?;
-        file.write_fmt(format_args!(
-            "\n\t\t\t{{\"{}\", {}.Instance}},",
-            "LocalZangNames", "LocalZangNames"
-        ))?;
-        file.write_fmt(format_args!(
-            "\n\t\t\t{{\"{}\", {}.Instance}},",
-            "LocalTownNames", "LocalTownNames"
-        ))?;
-        file.write_fmt(format_args!(
-            "\n\t\t\t{{\"{}\", {}.Instance}},",
-            "LocalMonasticTitles", "LocalMonasticTitles"
-        ))?;
+            // TODO: 临时代码
+            file.write_fmt(format_args!(
+                "\n\t\t\t{{\"{}\", {}.Instance}},",
+                "LocalSurnames", "LocalSurnames"
+            ))?;
+            file.write_fmt(format_args!(
+                "\n\t\t\t{{\"{}\", {}.Instance}},",
+                "LocalNames", "LocalNames"
+            ))?;
+            file.write_fmt(format_args!(
+                "\n\t\t\t{{\"{}\", {}.Instance}},",
+                "LocalZangNames", "LocalZangNames"
+            ))?;
+            file.write_fmt(format_args!(
+                "\n\t\t\t{{\"{}\", {}.Instance}},",
+                "LocalTownNames", "LocalTownNames"
+            ))?;
+            file.write_fmt(format_args!(
+                "\n\t\t\t{{\"{}\", {}.Instance}},",
+                "LocalMonasticTitles", "LocalMonasticTitles"
+            ))?;
 
-        for name in self
-            .entities
-            .iter()
-            .filter(|v| v.is_valid() && !v.is_language())
-            .map(|v| v.name())
-        {
-            file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
-        }
-        file.write("\n\t\t".as_bytes())?;
-        file.write(
-            r##"};
+            for name in self
+                .entities
+                .iter()
+                .filter(|v| v.is_valid() && !v.is_language())
+                .map(|v| v.name())
+            {
+                file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
+            }
+            file.write("\n\t\t".as_bytes())?;
+            file.write(
+                r##"};
     }
 }"##
-            .as_bytes(),
-        )?;
-        file.flush()?;
+                .as_bytes(),
+            )?;
+            file.flush()?;
+        }
 
         // loading tables
         let ctx = std::sync::Arc::new(BuildContext {
