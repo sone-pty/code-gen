@@ -133,6 +133,7 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
     let mut sort: BTreeMap<usize, String> = BTreeMap::new();
     sort.extend_reserve(template.main.row);
     let mut piece = String::new();
+    #[allow(unused_assignments)]
     let mut tid = None;
 
     for row in 0..lines {
@@ -141,15 +142,15 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
         piece.push_str(template.name);
         piece.push_str("Item(");
 
-        if template.raw_refs.is_empty() {
-            piece.write_fmt(format_args!("{}", row))?;
-            tid = Some(row);
-        } else if let Some(v) = template
+        if let Some(v) = template
             .raw_refs
             .get(unsafe { *ctx.templates.get_unchecked(row) })
         {
             tid = Some(*v as _);
             piece.write_fmt(format_args!("{}", v))?;
+        } else {
+            piece.write_fmt(format_args!("{}", row))?;
+            tid = Some(row);
         }
         piece.push(',');
 
