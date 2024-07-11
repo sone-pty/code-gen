@@ -98,29 +98,13 @@ pub fn parse_assign_with_type(
         vals
     };
 
-    if tyinfo.is_enum() {
-        if vals == "null" {
-            Ok(Box::new(Enum {
-                ty: tyinfo,
-                is_null: true,
-                ident: String::new(),
-            }) as Box<dyn Value>)
-        } else {
-            Ok(Box::new(Enum {
-                ty: tyinfo,
-                ident: vals.into(),
-                is_null: false,
-            }) as Box<dyn Value>)
+    let box_vals = parse_value(vals, 0, 0)?;
+    match get_value(ty, &box_vals, &ctx) {
+        Ok(e) => {
+            e.check()?;
+            Ok(e)
         }
-    } else {
-        let box_vals = parse_value(vals, 0, 0)?;
-        match get_value(ty, &box_vals, &ctx) {
-            Ok(e) => {
-                e.check()?;
-                Ok(e)
-            }
-            e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
-        }
+        e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
     }
 }
 
@@ -505,14 +489,24 @@ fn parse_enum_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, 
         }) as _);
     }
 
-    let values::p2(ident) = vals.as_ref() else {
-        return Err("expected enum ident, ident is not exist".into());
-    };
-    Ok(Box::new(Enum {
-        ty,
-        ident: ident.as_ref().0.content.into(),
-        is_null: false,
-    }))
+    match vals.as_ref() {
+        values::p0(literal_vals) => {
+            let literal_vals::p3(content) = literal_vals.as_ref() else {
+                return Err("expected enum value, ident is not exist".into());
+            };
+            Ok(Box::new(Enum {
+                ty,
+                ident: content.as_ref().0.content.replace("\"", ""),
+                is_null: false,
+            }))
+        }
+        values::p2(ident) => Ok(Box::new(Enum {
+            ty,
+            ident: ident.as_ref().0.content.into(),
+            is_null: false,
+        })),
+        _ => Err("expected enum value, ident is not exist".into()),
+    }
 }
 
 fn parse_string_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>, error::Error> {
@@ -1046,9 +1040,12 @@ fn parse_double_value(ty: TypeInfo, vals: &Box<values>) -> Result<Box<dyn Value>
 pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Error> {
     let mut ret = String::new();
     match ty {
-        TypeInfo::String | TypeInfo::LString => {
-            if val.starts_with('\"') && val.ends_with('\"') {
+        TypeInfo::String | TypeInfo::LString | TypeInfo::Enum(_, _) => {
+            let tval = val.trim();
+            if val.starts_with("\"") && val.ends_with("\"") {
                 return Ok(format!("{}", val));
+            } else if tval == "\"\"" {
+                return Ok(tval.into());
             } else {
                 return Ok(format!("\"{}\"", val));
             }
@@ -1091,4 +1088,13 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
 
     ret.replace_range(ret.len() - 1.., "}");
     Ok(ret)
+}
+
+#[test]
+fn test() {
+    let ty = parse_type("List<ValueTuple<string, string, string, string>>", 0, 0).unwrap();
+    let val = transfer_str_value("{{\"SectsPraise\",\"LK_Adventure_9_ParamName_0\",\"adventure_icon_chenggonglv\", \"\"}}", &get_value_type(&ty).unwrap()).unwrap();
+    println!("transfer-val = {}", val);
+    let bval = parse_assign_with_type(&ty, &val, None, None).unwrap();
+    let _ = bval.as_ref().code(&mut std::io::stdout());
 }

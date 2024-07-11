@@ -88,15 +88,15 @@ impl TypeInfo {
     }
 
     #[inline]
-    pub fn contains_string_or_lstring(&self) -> bool {
+    pub fn contains_string_or_lstring_or_enum(&self) -> bool {
         match self {
-            TypeInfo::String | TypeInfo::LString => true,
+            TypeInfo::String | TypeInfo::LString | TypeInfo::Enum(_, _) => true,
             TypeInfo::List(v) | TypeInfo::Array(v) | TypeInfo::FixedArray(v, _) => {
-                v.as_ref() == &TypeInfo::String || v.as_ref() == &TypeInfo::LString
+                v.contains_string_or_lstring_or_enum()
             }
-            TypeInfo::Tuple(v) | TypeInfo::ValueTuple(v) => v
-                .iter()
-                .any(|v| v.as_ref() == &TypeInfo::String || v.as_ref() == &TypeInfo::LString),
+            TypeInfo::Tuple(v) | TypeInfo::ValueTuple(v) => {
+                v.iter().any(|v| v.contains_string_or_lstring_or_enum())
+            }
             _ => false,
         }
     }

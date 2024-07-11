@@ -302,7 +302,13 @@ fn generate() {
 
 #[test]
 fn test_split() {
-    let ty = crate::parser::parse_type("enum A.Type", 0, 0).unwrap();
-    let val = crate::parser::parse_assign_with_type(&ty, "INT", None, None).unwrap();
+    let ty = crate::parser::parse_type("List<Tuple<short[], int[2], short[][2]>>", 0, 0).unwrap();
+    let val = crate::parser::parse_assign_with_type(
+        &ty,
+        "{ { {1,2,3}, {3,4}, {{1,2,3,4,5}, {3,4,5,65}} }, { {1,2,3}, {4,5}, {{1,2,3,4,5}, {3,4,5,65}} }, { {1,2,3}, {3,4}, {{1,2,3,4,5}, {3,4,5,65}} } }",
+        None,
+        None,
+    )
+    .unwrap();
     val.code(&mut std::io::stdout()).unwrap();
 }

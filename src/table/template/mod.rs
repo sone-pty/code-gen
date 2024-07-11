@@ -513,7 +513,7 @@ impl<'a> TableCore<'a> for Template<'a> {
                         if tyinfo.is_lstring_or_lstringarr() {
                             e.insert((tyinfo.clone(), None));
                         } else {
-                            if tyinfo.contains_string_or_lstring() {
+                            if tyinfo.contains_string_or_lstring_or_enum() {
                                 let tval = match crate::parser::transfer_str_value(val, &tyinfo) {
                                     Ok(v) => v,
                                     Err(e) => return Err(format!(
@@ -575,7 +575,7 @@ impl<'a> TableCore<'a> for Template<'a> {
                 let val = get_value(r, r - CFG.row_of_start + 1)
                     .map_err(|e| format!("In the table {}, {}", self.name, e))?;
 
-                if tyinfo.contains_string_or_lstring() {
+                if tyinfo.contains_string_or_lstring_or_enum() {
                     let tval = match crate::parser::transfer_str_value(val, &tyinfo) {
                         Ok(v) => v,
                         Err(e) => {

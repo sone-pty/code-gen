@@ -112,7 +112,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
                 let value_ty = crate::parser::parse_type(*ty, 0, 0)?;
                 let tyinfo = crate::parser::get_value_type(&value_ty)?;
 
-                if tyinfo.contains_string_or_lstring() {
+                if tyinfo.contains_string_or_lstring_or_enum() {
                     let tval = match crate::parser::transfer_str_value(val, &tyinfo) {
                         Ok(v) => v,
                         Err(e) => {
