@@ -302,7 +302,7 @@ fn generate() {
 
 #[test]
 fn test_split() {
-    let ty = crate::parser::parse_type("short[2]", 0, 0).unwrap();
-    let val = crate::parser::parse_assign_with_type(&ty, "{}", None, None).unwrap();
+    let ty = crate::parser::parse_type("enum A.Type", 0, 0).unwrap();
+    let val = crate::parser::parse_assign_with_type(&ty, "INT", None, None).unwrap();
     val.code(&mut std::io::stdout()).unwrap();
 }

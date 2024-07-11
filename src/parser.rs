@@ -98,13 +98,29 @@ pub fn parse_assign_with_type(
         vals
     };
 
-    let box_vals = parse_value(vals, 0, 0)?;
-    match get_value(ty, &box_vals, &ctx) {
-        Ok(e) => {
-            e.check()?;
-            Ok(e)
+    if tyinfo.is_enum() {
+        if vals == "null" {
+            Ok(Box::new(Enum {
+                ty: tyinfo,
+                is_null: true,
+                ident: String::new(),
+            }) as Box<dyn Value>)
+        } else {
+            Ok(Box::new(Enum {
+                ty: tyinfo,
+                ident: vals.into(),
+                is_null: false,
+            }) as Box<dyn Value>)
         }
-        e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
+    } else {
+        let box_vals = parse_value(vals, 0, 0)?;
+        match get_value(ty, &box_vals, &ctx) {
+            Ok(e) => {
+                e.check()?;
+                Ok(e)
+            }
+            e => e.map_err(|e| format!("vals = `{}`, error: {}", vals, e).into()),
+        }
     }
 }
 
