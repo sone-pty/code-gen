@@ -1043,20 +1043,28 @@ impl<'a> FKValue<'a> {
                     num = num_str.parse()?;
                 }
 
-                let refs = ctx.refs.get(fk_names[num]).ok_or::<Error>(
-                    format!("Can't find refdata about `{}`", fk_names[num]).into(),
-                )?;
+                let refs = ctx.refs.get(fk_names[num]);
+                let mappings = ctx.efks.get(fk_names[num]);
+
+                if refs.is_none() && mappings.is_none() {
+                    return Err(format!("Can't find refdata about `{}`", fk_names[num]).into());
+                }
 
                 if *v.1 == "None" {
                     output.push_str("-1");
-                } else if let Some(replace) = refs.0.get(*v.1) {
-                    std::fmt::Write::write_fmt(output, format_args!("{}", *replace))?;
-                } else {
-                    /* return Err(format!(
-                        "Can't find ref about key `{}` in table {}",
-                        v.1, fk_names[num]
-                    )
-                    .into()); */
+                } else if !refs.is_some_and(|refs| match refs.0.get(*v.1) {
+                    Some(v) => {
+                        let _ = std::fmt::Write::write_fmt(output, format_args!("{}", *v));
+                        true
+                    }
+                    None => false,
+                }) && !mappings.is_some_and(|mappings| match mappings.get(*v.1) {
+                    Some(v) => {
+                        let _ = std::fmt::Write::write_fmt(output, format_args!("{}", *v));
+                        true
+                    }
+                    None => false,
+                }) {
                     output.push_str("-1");
                 }
             }
@@ -1091,18 +1099,29 @@ impl<'a> FKValue<'a> {
             } else if pat.is_empty() {
                 output.push_str(v.1);
             } else {
-                let refs = ctx
-                    .refs
-                    .get(pat)
-                    .ok_or::<Error>(format!("Can't find refdata about `{}`", pat).into())?;
+                let refs = ctx.refs.get(pat);
+                let mappings = ctx.efks.get(pat);
+
+                if refs.is_none() && mappings.is_none() {
+                    return Err(format!("Can't find refdata about `{}`", pat).into());
+                }
+
                 if *v.1 == "None" {
                     output.push_str("-1");
-                } else if let Some(replace) = refs.0.get(*v.1) {
-                    std::fmt::Write::write_fmt(output, format_args!("{}", *replace))?;
-                } else {
-                    /* return Err(
-                        format!("Can't find ref about key `{}` in table {}", v.1, pat).into(),
-                    ); */
+                } else if !refs.is_some_and(|refs| match refs.0.get(*v.1) {
+                    Some(v) => {
+                        let _ = std::fmt::Write::write_fmt(output, format_args!("{}", *v));
+                        true
+                    }
+                    None => false,
+                }) && !mappings.is_some_and(|mappings| match mappings.get(*v.1) {
+                    Some(v) => {
+                        let _ = std::fmt::Write::write_fmt(output, format_args!("{}", *v));
+                        true
+                    }
+                    None => false,
+                }) {
+                    // nothing happen
                 }
             }
 
