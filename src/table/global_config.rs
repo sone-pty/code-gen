@@ -208,7 +208,7 @@ impl<'a> TableCore<'a> for GlobalConfig<'a> {
         };
 
         Ok(Self {
-            name: name.into(),
+            name,
             main: Sheet { col, row, data },
         })
     }

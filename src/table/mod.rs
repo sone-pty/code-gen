@@ -7,12 +7,14 @@ use crate::{
 };
 use ansi_term::Colour::Red;
 use dashmap::DashMap;
+use fk::FkTable;
 use global_config::GlobalConfig;
 use language::Languages;
 use std::{collections::HashMap, io::Write, ops::Deref, sync::Arc};
 use template::{Enums, Template};
 use xlsx_read::excel_table::ExcelTable;
 
+mod fk;
 mod global_config;
 mod language;
 mod template;
@@ -74,6 +76,7 @@ pub enum TableEntity {
     ), // (name, template, enums, extras)
     GlobalConfig(String, Option<ExcelTableWrapper>),
     Language(Vec<(String, ExcelTableWrapper)>),
+    Fk(String, ExcelTableWrapper),
 }
 
 unsafe impl Send for TableEntity {}
@@ -90,6 +93,10 @@ impl TableEntity {
 
     pub fn new_global(name: &str) -> Self {
         TableEntity::GlobalConfig(name.into(), None)
+    }
+
+    pub fn new_fk(name: &str, mapping: ExcelTableWrapper) -> Self {
+        TableEntity::Fk(name.into(), mapping)
     }
 
     pub fn new_language(first: (String, ExcelTableWrapper)) -> Self {
@@ -120,6 +127,7 @@ impl TableEntity {
             TableEntity::Template(v, _, _, _) => &v,
             TableEntity::GlobalConfig(v, _) => &v,
             TableEntity::Language(_) => "LString",
+            TableEntity::Fk(v, _) => &v,
             _ => "",
         }
     }
@@ -268,6 +276,8 @@ namespace Config
 #[derive(Default)]
 pub struct BuildContext<'a> {
     pub(crate) refs: DashMap<String, (HashMap<String, i32>, i32)>,
+    // extra fk mappings
+    pub(crate) efks: DashMap<String, HashMap<String, i32>>,
     pub(crate) loption: &'a str,
 }
 
@@ -347,12 +357,21 @@ impl<'a> Table<'a> {
                     ctx.clone(),
                 )?));
             }
+            TableEntity::Fk(name, mapping) => {
+                core = Some(Box::new(FkTable::load(&mapping, &name, &[], ctx.clone())?));
+            }
         }
         Ok(Self { core })
     }
 
-    fn get_sheet_height(table: &ExcelTable) -> Result<usize, Error> {
-        for y in CFG.row_of_start..table.height() {
+    pub(crate) fn get_sheet_height(table: &ExcelTable, start: Option<usize>) -> Result<usize, Error> {
+        let start = if start.is_none() {
+            CFG.row_of_start
+        } else {
+            unsafe { start.unwrap_unchecked() }
+        };
+
+        for y in start..table.height() {
             if table
                 .cell_content(0, y)
                 .is_some_and(|v| v.trim() == CFG.eof_flag)

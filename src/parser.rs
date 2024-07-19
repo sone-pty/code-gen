@@ -1093,7 +1093,11 @@ pub fn transfer_str_value(val: &str, ty: &TypeInfo) -> Result<String, error::Err
 #[test]
 fn test() {
     let ty = parse_type("List<ValueTuple<string, string, string, string>>", 0, 0).unwrap();
-    let val = transfer_str_value("{{\"SectsPraise\",\"LK_Adventure_9_ParamName_0\",\"adventure_icon_chenggonglv\", \"\"}}", &get_value_type(&ty).unwrap()).unwrap();
+    let val = transfer_str_value(
+        "{{\"SectsPraise\",\"LK_Adventure_9_ParamName_0\",\"adventure_icon_chenggonglv\", \"\"}}",
+        &get_value_type(&ty).unwrap(),
+    )
+    .unwrap();
     println!("transfer-val = {}", val);
     let bval = parse_assign_with_type(&ty, &val, None, None).unwrap();
     let _ = bval.as_ref().code(&mut std::io::stdout());

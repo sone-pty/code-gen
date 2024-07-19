@@ -42,7 +42,7 @@ impl<'a> Template<'a> {
         extras: &'b [(String, ExcelTableWrapper)],
         ctx: &BuildContext,
     ) -> Result<Self, Error> {
-        let row = Table::get_sheet_height(table)?;
+        let row = Table::get_sheet_height(table, None)?;
         let col = table.width();
         let mut table_refs_set = HashSet::new();
         let mut extra_sheets = Vec::new();
@@ -947,10 +947,12 @@ impl<'a> FKValue<'a> {
                 .filter(|c| *c != '{' && *c != '}')
                 .collect::<String>();
 
-            let refs = ctx
-                .refs
-                .get(&key)
-                .ok_or::<Error>(format!("Can't find refdata about `{}`", key).into())?;
+            let refs = ctx.refs.get(&key);
+            let mappings = ctx.efks.get(&key);
+
+            if refs.is_none() && mappings.is_none() {
+                return Err(format!("Can't find refdata about `{}`", key).into());
+            }
 
             for v in rval.chars() {
                 match v {
@@ -958,7 +960,7 @@ impl<'a> FKValue<'a> {
                         ret.push(v);
                     }
                     '}' | ',' | '，' => {
-                        Self::replace(&mut ch_stack, &mut ret, &refs)?;
+                        Self::replace(&mut ch_stack, &mut ret, refs.as_ref(), mappings.as_ref())?;
                         ret.push(v);
                     }
                     _ => {
@@ -968,7 +970,7 @@ impl<'a> FKValue<'a> {
             }
 
             if !ch_stack.is_empty() {
-                Self::replace(&mut ch_stack, &mut ret, &refs)?;
+                Self::replace(&mut ch_stack, &mut ret, refs.as_ref(), mappings.as_ref())?;
             }
         } else if pattern.contains('?') || pattern.contains('#') {
             if rval != "{}" {
@@ -1114,7 +1116,8 @@ impl<'a> FKValue<'a> {
     fn replace(
         st: &mut util::Stack<char>,
         dest: &mut String,
-        refs: &dashmap::mapref::one::Ref<String, (HashMap<String, i32>, i32)>,
+        refs: Option<&dashmap::mapref::one::Ref<String, (HashMap<String, i32>, i32)>>,
+        mappings: Option<&dashmap::mapref::one::Ref<String, HashMap<String, i32>>>,
     ) -> Result<(), Error> {
         let mut s = String::with_capacity(10);
         while !st.is_empty() {
@@ -1122,14 +1125,22 @@ impl<'a> FKValue<'a> {
                 s.push(r)
             }
         }
+
         let rev: String = s.chars().rev().collect();
         if !rev.is_empty() {
-            if let Some(v) = refs.0.get(&rev) {
-                std::fmt::Write::write_fmt(dest, format_args!("{}", *v))?;
-            } else {
-                /* return Err(
-                    format!("Can't find ref about key `{}` in table {}", rev, refs.key()).into(),
-                ); */
+            if !refs.is_some_and(|v| match v.0.get(&rev) {
+                Some(v) => {
+                    let _ = std::fmt::Write::write_fmt(dest, format_args!("{}", *v));
+                    true
+                }
+                None => false,
+            }) && !mappings.is_some_and(|v| match v.get(&rev) {
+                Some(v) => {
+                    let _ = std::fmt::Write::write_fmt(dest, format_args!("{}", *v));
+                    true
+                }
+                None => false,
+            }) {
                 dest.push_str("-1");
             }
         }

@@ -104,6 +104,9 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
                 };
                 v.replace(ExcelTableWrapper(sheet));
             }
+            "FK" => {
+                entity = TableEntity::new_fk(name, ExcelTableWrapper(sheet));
+            }
             v if v.starts_with("t_") => {
                 let TableEntity::Template(_, _, ref mut enums, _) = entity else {
                     return Err("Expected Template type entity".into());
