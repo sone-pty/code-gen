@@ -114,6 +114,14 @@ impl TableEntity {
     }
 
     #[inline]
+    fn is_fk(&self) -> bool {
+        match self {
+            TableEntity::Fk(_, _) => true,
+            _ => false,
+        }
+    }
+
+    #[inline]
     fn is_valid(&self) -> bool {
         match self {
             TableEntity::Invalid => false,
@@ -179,7 +187,7 @@ namespace Config
             for name in self
                 .entities
                 .iter()
-                .filter(|v| v.is_valid() && !v.is_language())
+                .filter(|v| v.is_valid() && !v.is_language() && !v.is_fk())
                 .map(|v| v.name())
             {
                 file.write_fmt(format_args!("\n\t\t\t{}.Instance,", name))?;
@@ -219,7 +227,7 @@ namespace Config
             for name in self
                 .entities
                 .iter()
-                .filter(|v| v.is_valid() && !v.is_language())
+                .filter(|v| v.is_valid() && !v.is_language() && !v.is_fk())
                 .map(|v| v.name())
             {
                 file.write_fmt(format_args!("\n\t\t\t{{\"{}\", {}.Instance}},", name, name))?;
@@ -364,7 +372,10 @@ impl<'a> Table<'a> {
         Ok(Self { core })
     }
 
-    pub(crate) fn get_sheet_height(table: &ExcelTable, start: Option<usize>) -> Result<usize, Error> {
+    pub(crate) fn get_sheet_height(
+        table: &ExcelTable,
+        start: Option<usize>,
+    ) -> Result<usize, Error> {
         let start = if start.is_none() {
             CFG.row_of_start
         } else {
