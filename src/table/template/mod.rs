@@ -65,7 +65,6 @@ impl<'a> Template<'a> {
         };
 
         let (mut refs, mut max_ref_num, mut ref_file) = Self::load_refs(name)?;
-        let raw_refs = refs.clone();
         let init = max_ref_num == CFG.ref_start_num - 1;
 
         // extra None ref value
@@ -139,6 +138,7 @@ impl<'a> Template<'a> {
             }
         }
 
+        let raw_refs = refs.clone();
         ctx.refs.insert(name.into(), (refs, max_ref_num));
         Ok(Self {
             main: Sheet { col, row, data },
