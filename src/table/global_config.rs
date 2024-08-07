@@ -32,7 +32,7 @@ impl<'a> GlobalConfig<'a> {
         writeln!(file, "{{")?;
         writeln!(file, "    public int GetItemId(string refName) => throw new System.NotImplementedException();")?;
         writeln!(file, "    public int AddExtraItem(string identifier, string refName, object configItem) => throw new System.NotImplementedException();")?;
-        writeln!(file, "    public IReadOnlyDictionary<string, int> RefNameMap => throw new NotImplementedException();")?;
+        writeln!(file, "    public IReadOnlyDictionary<string, int> RefNameMap => throw new System.NotImplementedException();")?;
         writeln!(
             file,
             "    public static {} Instance = new {}();",
