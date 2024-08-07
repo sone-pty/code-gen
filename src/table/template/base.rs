@@ -125,6 +125,9 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
     )?;
     stream.write(end.as_bytes())?;
     format(tab_nums + 1, stream)?;
+    stream.write("public IReadonlyDictionary<string, int> RefNameMap => _refNameMap;".as_bytes())?;
+    stream.write(end.as_bytes())?;
+    format(tab_nums + 1, stream)?;
     stream.write("private List<".as_bytes())?;
     stream.write(template.name.as_bytes())?;
     stream.write("Item> _dataArray = null;".as_bytes())?;
@@ -837,6 +840,9 @@ pub(crate) fn inner_build_server<W: std::io::Write + ?Sized>(
         "private readonly Dictionary<string, int> _refNameMap = new Dictionary<string, int>();"
             .as_bytes(),
     )?;
+    stream.write(end.as_bytes())?;
+    format(tab_nums + 1, stream)?;
+    stream.write("public IReadonlyDictionary<string, int> RefNameMap => _refNameMap;".as_bytes())?;
     stream.write(end.as_bytes())?;
     format(tab_nums + 1, stream)?;
     stream.write("private List<".as_bytes())?;
