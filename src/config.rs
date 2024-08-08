@@ -27,6 +27,7 @@ pub struct Config {
     pub language_xlsx_name: &'static str,
     pub ref_start_num: i32,
     pub align_str: &'static str,
+    pub ban_list: Vec<&'static str>,
 }
 
 impl Config {
@@ -63,6 +64,15 @@ impl Config {
             language_xlsx_name: config.attribute("language_xlsx_name")?.as_str()?,
             ref_start_num: config.attribute("ref_start_num")?.as_i32()?,
             align_str: config.attribute("align_str")?.as_str()?,
+            ban_list: {
+                let mut r = Vec::new();
+                let banned = config.attribute("ban_lists")?.as_array()?;
+                for i in 0..banned.0.elements.len() {
+                    let e = banned.index(i)?.as_str()?;
+                    r.push(e);
+                }
+                r
+            },
         })
     }
 }
@@ -85,12 +95,15 @@ pub static mut REF_TEXT_DIR: &'static str = "ConfigRefNameMapping/";
 pub static mut CONFIG_COLLECTION_PATH: &'static str = "";
 pub static mut LANG_OUTPUT_DIR: &'static str = "Data/";
 pub static TABLE_XLSX_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
-    let mut ret = HashSet::<&'static str>::default();
-    ret.insert("NameCore_CN.xlsx");
-    ret.insert("DeadCharacter.xlsx");
-    ret.insert("InscribedCharacter.xlsx");
-    ret.insert("Shell");
-    ret.insert("CustomExportConfig");
+    let mut ret = HashSet::new();
+    for v in CFG.ban_list.iter() {
+        ret.insert(*v);   
+    }
+    // ret.insert("NameCore_CN.xlsx");
+    // ret.insert("DeadCharacter.xlsx");
+    // ret.insert("InscribedCharacter.xlsx");
+    // ret.insert("Shell");
+    // ret.insert("CustomExportConfig");
     ret
 });
 pub static ENUM_FLAGS_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {

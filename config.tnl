@@ -28,4 +28,11 @@ config: @config {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////"##
     ref_start_num: -1
     align_str: "    "
+    ban_lists: [
+        "NameCore_CN.xlsx",
+        "DeadCharacter.xlsx",
+        "InscribedCharacter.xlsx",
+        "Shell",
+        "CustomExportConfig",
+    ]
 }
