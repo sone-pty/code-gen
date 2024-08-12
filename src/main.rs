@@ -151,6 +151,7 @@ fn load_tables<P: AsRef<Path>>(
                 match load_tables(path, tx_clone, excluded_clone, tables_clone) {
                     Err(e) => {
                         eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
+                        wait_for_user_input();
                         exit(-1);
                     }
                     _ => {}
@@ -190,6 +191,12 @@ fn build(
     };
     genarator.build()?;
     Ok(())
+}
+
+fn wait_for_user_input() {
+    println!("\nPress any key to exit the program...");
+    let mut empty = [0; 1];
+    let _ = std::io::Read::read(&mut std::io::stdin(), &mut empty);
 }
 
 #[derive(Default)]
@@ -245,6 +252,7 @@ fn main() {
                     }
                     Err(e) => {
                         eprintln!("{}", Red.bold().paint(format!("load_tables failed: {}", e)));
+                        wait_for_user_input();
                         exit(-1);
                     }
                 }
@@ -272,9 +280,7 @@ fn main() {
             }
 
             println!("[End]");
-            println!("\nPress any key to exit the program...");
-            let mut empty = [0; 1];
-            let _ = std::io::Read::read(&mut std::io::stdin(), &mut empty);
+            wait_for_user_input();
         }
         args::Command::Clean => {
             if let Err(e) = fs::remove_dir_all(unsafe { OUTPUT_SCRIPT_CODE_DIR }) {
