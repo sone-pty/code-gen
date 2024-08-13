@@ -132,27 +132,25 @@ pub fn parse_assign(
     }
 }
 
-#[allow(dead_code)]
 pub fn parse_type(expr: &str, row: usize, col: usize) -> Result<Box<value_type>, error::Error> {
     let parser = &*PARSER;
     let mut cursor = Cursor::new(expr, row, col, None);
     let ty = parser
         .syntaxer
         .parse_optional::<_, _, value_type>(parser.lexer.tokenizing(&mut cursor, &mut ()))
-        .map_err(|e| e.into(&cursor))?
-        .ok_or(error::Error::from("parse_optional return none"))?;
+        .map_err(|_| error::Error::from(format!("parse_type failed, expr = `{}`", expr)))?
+        .ok_or(error::Error::from(format!("parse_type failed, expr = `{}`", expr)))?;
     Ok(ty)
 }
 
-#[allow(dead_code)]
 pub fn parse_value(expr: &str, row: usize, col: usize) -> Result<Box<values>, error::Error> {
     let parser = &*PARSER;
     let mut cursor = Cursor::new(expr, row, col, None);
     let val = parser
         .syntaxer
         .parse_optional::<_, _, values>(parser.lexer.tokenizing(&mut cursor, &mut ()))
-        .map_err(|e| e.into(&cursor))?
-        .ok_or(error::Error::from("parse_optional return none"))?;
+        .map_err(|_| format!("parse_value failed, expr = `{}`", expr))?
+        .ok_or(error::Error::from(format!("parse_value failed, expr = `{}`", expr)))?;
     Ok(val)
 }
 
