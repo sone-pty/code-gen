@@ -1,7 +1,5 @@
 use std::{
-    collections::HashMap,
-    path::Path,
-    sync::atomic::{AtomicPtr, Ordering},
+    collections::HashMap, hint::unreachable_unchecked, path::Path, sync::atomic::{AtomicPtr, Ordering}
 };
 
 use xlsx_read::excel_file::ExcelFile;
@@ -93,14 +91,14 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
             "Template" => {
                 entity = TableEntity::new_template(name);
                 let TableEntity::Template(_, ref mut v, _, _) = entity else {
-                    return Err(format!("Expected Template type entity about {}.xlsx", name).into());
+                    return Err(format!("The {}.xlsx is missing a `Template` sheet", name).into());
                 };
                 v.replace(ExcelTableWrapper(sheet));
             }
             "GlobalConfig" => {
                 entity = TableEntity::new_global(name);
                 let TableEntity::GlobalConfig(_, ref mut v) = entity else {
-                    return Err("Expected GlobalConfig type entity".into());
+                    unsafe { unreachable_unchecked() }
                 };
                 v.replace(ExcelTableWrapper(sheet));
             }
@@ -109,7 +107,7 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
             }
             v if v.starts_with("t_") => {
                 let TableEntity::Template(_, _, ref mut enums, _) = entity else {
-                    return Err(format!("Expected Template type entity about {}.xlsx", name).into());
+                    return Err(format!("The {}.xlsx is missing a `Template` sheet", name).into());
                 };
                 enums.push(((&v[2..]).into(), ExcelTableWrapper(sheet)));
             }
@@ -126,7 +124,7 @@ pub fn load_execl_table<P: AsRef<Path>>(path: P, name: &str) -> Result<TableEnti
             },
             v => {
                 let TableEntity::Template(_, _, _, ref mut extras) = entity else {
-                    return Err(format!("Expected Template type entity about {}.xlsx", name).into());
+                    return Err(format!("The {}.xlsx is missing a `Template` sheet", name).into());
                 };
                 if let Some(preconfig) = PRECONFIG.get(name) {
                     if preconfig.exist(v) {
