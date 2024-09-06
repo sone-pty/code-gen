@@ -972,32 +972,24 @@ impl<'a> FKValue<'a> {
             if !ch_stack.is_empty() {
                 Self::replace(&mut ch_stack, &mut ret, refs.as_ref(), mappings.as_ref())?;
             }
-        } else if pattern.contains('?') || pattern.contains('#') {
-            if rval != "{}" {
+        } else if (pattern.contains('?') || pattern.contains('#')) && rval != "{}" {
                 ret.push('{');
-            }
-            match Self::load_1(ctx, &pat, &rval, &mut ret) {
-                Err(e) => {
-                    return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
+                match Self::load_1(ctx, &pat, &rval, &mut ret) {
+                    Err(e) => {
+                        return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
-            if rval != "{}" {
                 ret.push('}');
-            }
-        } else {
-            if rval != "{}" {
+        } else if rval != "{}" {
                 ret.push('{');
-            }
-            match Self::load_2(ctx, &pat, &rval, &mut ret) {
-                Err(e) => {
-                    return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
+                match Self::load_2(ctx, &pat, &rval, &mut ret) {
+                    Err(e) => {
+                        return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
+                    }
+                    _ => {}
                 }
-                _ => {}
-            }
-            if rval != "{}" {
                 ret.push('}');
-            }
         }
         Ok(ret)
     }
@@ -1050,7 +1042,7 @@ impl<'a> FKValue<'a> {
                     return Err(format!("Can't find refdata about `{}`", fk_names[num]).into());
                 }
 
-                if *v.1 == "None" {
+                if *v.1 == "None" || v.1.is_empty() {
                     output.push_str("-1");
                 } else if !refs.is_some_and(|refs| match refs.0.get(*v.1) {
                     Some(v) => {
@@ -1065,7 +1057,7 @@ impl<'a> FKValue<'a> {
                     }
                     None => false,
                 }) {
-                    output.push_str("-1");
+                    return Err(format!("Can't find ref about `{}`", v.1).into());
                 }
             }
 
@@ -1106,7 +1098,7 @@ impl<'a> FKValue<'a> {
                     return Err(format!("Can't find refdata about `{}`", pat).into());
                 }
 
-                if *v.1 == "None" {
+                if *v.1 == "None" || v.1.is_empty() {
                     output.push_str("-1");
                 } else if !refs.is_some_and(|refs| match refs.0.get(*v.1) {
                     Some(v) => {
@@ -1121,7 +1113,7 @@ impl<'a> FKValue<'a> {
                     }
                     None => false,
                 }) {
-                    // nothing happen
+                    return Err(format!("Can't find ref about `{}`", v.1).into());
                 }
             }
 
@@ -1160,7 +1152,7 @@ impl<'a> FKValue<'a> {
                 }
                 None => false,
             }) {
-                dest.push_str("-1");
+                return Err(format!("Can't find ref about `{}`", rev).into());
             }
         }
         Ok(())
