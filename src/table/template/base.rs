@@ -125,7 +125,8 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
     )?;
     stream.write(end.as_bytes())?;
     format(tab_nums + 1, stream)?;
-    stream.write("public IReadOnlyDictionary<string, int> RefNameMap => _refNameMap;".as_bytes())?;
+    stream
+        .write("public IReadOnlyDictionary<string, int> RefNameMap => _refNameMap;".as_bytes())?;
     stream.write(end.as_bytes())?;
     format(tab_nums + 1, stream)?;
     stream.write("private List<".as_bytes())?;
@@ -842,7 +843,8 @@ pub(crate) fn inner_build_server<W: std::io::Write + ?Sized>(
     )?;
     stream.write(end.as_bytes())?;
     format(tab_nums + 1, stream)?;
-    stream.write("public IReadOnlyDictionary<string, int> RefNameMap => _refNameMap;".as_bytes())?;
+    stream
+        .write("public IReadOnlyDictionary<string, int> RefNameMap => _refNameMap;".as_bytes())?;
     stream.write(end.as_bytes())?;
     format(tab_nums + 1, stream)?;
     stream.write("private List<".as_bytes())?;

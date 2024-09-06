@@ -1,5 +1,8 @@
 use std::{
-    collections::HashMap, hint::unreachable_unchecked, path::Path, sync::atomic::{AtomicPtr, Ordering}
+    collections::HashMap,
+    hint::unreachable_unchecked,
+    path::Path,
+    sync::atomic::{AtomicPtr, Ordering},
 };
 
 use xlsx_read::excel_file::ExcelFile;

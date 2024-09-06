@@ -932,15 +932,16 @@ impl<'a> FKValue<'a> {
 
     fn load_0(val: &str, pattern: &str, ctx: &BuildContext) -> Result<String, Error> {
         let rval = val.chars().filter(|c| *c != ' ').collect::<String>();
+        let lrval = val.chars().collect::<String>();
         let pat = pattern.chars().filter(|c| *c != ' ').collect::<String>();
         let mut ret = String::new();
+        let t1 = pattern.chars().all(|c| c.is_alphanumeric());
+        let t2 = pattern
+            .chars()
+            .filter(|c| *c != '{' && *c != '}')
+            .all(|c| c.is_alphanumeric());
 
-        if pattern.chars().all(|c| c.is_alphanumeric())
-            || pattern
-                .chars()
-                .filter(|c| *c != '{' && *c != '}')
-                .all(|c| c.is_alphanumeric())
-        {
+        if t1 || t2 {
             let mut ch_stack = util::Stack::<char>::new();
             let key = pattern
                 .chars()
@@ -954,7 +955,7 @@ impl<'a> FKValue<'a> {
                 return Err(format!("Can't find refdata about `{}`", key).into());
             }
 
-            for v in rval.chars() {
+            for v in lrval.chars() {
                 match v {
                     '{' => {
                         ret.push(v);
@@ -973,23 +974,23 @@ impl<'a> FKValue<'a> {
                 Self::replace(&mut ch_stack, &mut ret, refs.as_ref(), mappings.as_ref())?;
             }
         } else if (pattern.contains('?') || pattern.contains('#')) && rval != "{}" {
-                ret.push('{');
-                match Self::load_1(ctx, &pat, &rval, &mut ret) {
-                    Err(e) => {
-                        return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
-                    }
-                    _ => {}
+            ret.push('{');
+            match Self::load_1(ctx, &pat, &rval, &mut ret) {
+                Err(e) => {
+                    return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
                 }
-                ret.push('}');
+                _ => {}
+            }
+            ret.push('}');
         } else if rval != "{}" {
-                ret.push('{');
-                match Self::load_2(ctx, &pat, &rval, &mut ret) {
-                    Err(e) => {
-                        return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
-                    }
-                    _ => {}
+            ret.push('{');
+            match Self::load_2(ctx, &pat, &rval, &mut ret) {
+                Err(e) => {
+                    return Err(format!("val = `{}`, pattern = `{}`, {}", rval, pat, e).into());
                 }
-                ret.push('}');
+                _ => {}
+            }
+            ret.push('}');
         }
         Ok(ret)
     }
@@ -1138,14 +1139,15 @@ impl<'a> FKValue<'a> {
         }
 
         let rev: String = s.chars().rev().collect();
+        let rev = rev.trim();
         if !rev.is_empty() {
-            if !refs.is_some_and(|v| match v.0.get(&rev) {
+            if !refs.is_some_and(|v| match v.0.get(rev) {
                 Some(v) => {
                     let _ = std::fmt::Write::write_fmt(dest, format_args!("{}", *v));
                     true
                 }
                 None => false,
-            }) && !mappings.is_some_and(|v| match v.get(&rev) {
+            }) && !mappings.is_some_and(|v| match v.get(rev) {
                 Some(v) => {
                     let _ = std::fmt::Write::write_fmt(dest, format_args!("{}", *v));
                     true

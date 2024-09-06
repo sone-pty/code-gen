@@ -97,7 +97,7 @@ pub static mut LANG_OUTPUT_DIR: &'static str = "Data/";
 pub static TABLE_XLSX_FILTER: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     let mut ret = HashSet::new();
     for v in CFG.ban_list.iter() {
-        ret.insert(*v);   
+        ret.insert(*v);
     }
     // ret.insert("NameCore_CN.xlsx");
     // ret.insert("DeadCharacter.xlsx");

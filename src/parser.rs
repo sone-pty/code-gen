@@ -139,7 +139,10 @@ pub fn parse_type(expr: &str, row: usize, col: usize) -> Result<Box<value_type>,
         .syntaxer
         .parse_optional::<_, _, value_type>(parser.lexer.tokenizing(&mut cursor, &mut ()))
         .map_err(|_| error::Error::from(format!("parse_type failed, expr = `{}`", expr)))?
-        .ok_or(error::Error::from(format!("parse_type failed, expr = `{}`", expr)))?;
+        .ok_or(error::Error::from(format!(
+            "parse_type failed, expr = `{}`",
+            expr
+        )))?;
     Ok(ty)
 }
 
@@ -150,7 +153,10 @@ pub fn parse_value(expr: &str, row: usize, col: usize) -> Result<Box<values>, er
         .syntaxer
         .parse_optional::<_, _, values>(parser.lexer.tokenizing(&mut cursor, &mut ()))
         .map_err(|_| format!("parse_value failed, expr = `{}`", expr))?
-        .ok_or(error::Error::from(format!("parse_value failed, expr = `{}`", expr)))?;
+        .ok_or(error::Error::from(format!(
+            "parse_value failed, expr = `{}`",
+            expr
+        )))?;
     Ok(val)
 }
 
