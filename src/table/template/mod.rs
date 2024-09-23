@@ -393,6 +393,7 @@ impl<'a> TableCore<'a> for Template<'a> {
         let mut nodefs = HashSet::new();
         let mut defaults = HashMap::new();
         let mut templates = Vec::with_capacity(self.main.row);
+        let mut templates_set = HashSet::with_capacity(self.main.row);
         let mut items = Vec::new();
         let mut enumflags: HashMap<_, Vec<&str>> = HashMap::new();
         let mut keytypes = None;
@@ -430,7 +431,15 @@ impl<'a> TableCore<'a> for Template<'a> {
             .map(|v| self.main.cell(0, v, true))
             .filter(|v| v.as_ref().is_ok_and(|v| !v.is_empty()))
         {
-            templates.push(r?);
+            let r = r?;
+            if templates_set.contains(r) {
+                return Err(
+                    format!("Table {} has duplicate template id `{}`", self.name, r).into(),
+                );
+            } else {
+                templates.push(r);
+                templates_set.insert(r);
+            }
         }
 
         // parse values
