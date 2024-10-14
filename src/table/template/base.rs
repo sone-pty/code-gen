@@ -156,7 +156,10 @@ pub(crate) fn inner_build_client<W: std::io::Write + ?Sized>(
             piece.write_fmt(format_args!("{}", row))?;
             tid = Some(row);
         }
-        piece.push(',');
+
+        if ctx.required.len() > 1 {
+            piece.push(',');
+        }
 
         for (idx, v) in ctx.required.iter().skip(1).enumerate() {
             let rows = unsafe { ctx.values.get_unchecked(v.0) };
